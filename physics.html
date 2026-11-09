@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Falling Cat Physics</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --code: #f0efea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --code: #232321;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --code: #232321;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 28px 16px 72px; }
+  h1 { font-size: 30px; margin: 0 0 4px; }
+  h2 { font-size: 22px; margin: 48px 0 8px; scroll-margin-top: 16px; }
+  h3 { font-size: 16px; margin: 22px 0 6px; }
+  p, li { color: var(--text-2); }
+  a { color: var(--s1); }
+  b, strong { color: var(--text); }
+  .lede { font-size: 18px; }
+  nav.top { display: flex; flex-wrap: wrap; gap: 10px 18px; font-size: 14px; margin: 6px 0 18px; }
+  .toc { columns: 2; column-gap: 28px; font-size: 14px; padding-left: 18px; margin: 10px 0 0; }
+  @media (max-width: 600px) { .toc { columns: 1; } }
+  .eq { display: block; margin: 12px 0; padding: 10px 14px; background: var(--code); border-radius: 8px; color: var(--text);
+    font: 16px/1.5 "Cambria Math", "STIX Two Math", Georgia, serif; overflow-x: auto; white-space: nowrap; }
+  .eq small { display: block; font: 13px/1.4 system-ui, sans-serif; color: var(--muted); margin-top: 4px; white-space: normal; }
+  var { font-family: "Cambria Math", Georgia, serif; }
+  /* Notation: scalars italic (var), vectors italic with an arrow above (.vc), unit vectors with a hat (.uv),
+     tensors bold upright sans-serif (.tn). The arrow is drawn with CSS so it sits over just the letter, not its subscript. */
+  /* An inline-block whose first row is the arrow and second row the letter; its baseline is the letter's, so it lines up with the text. */
+  .vc { font: italic 400 1.05em "Cambria Math", Georgia, serif; color: inherit; display: inline-block; text-align: center;
+    line-height: 1; vertical-align: baseline; padding-left: 0.08em; }
+  .vc::before { content: "\2192"; display: block; font: normal 400 0.8em/1 "Cambria Math", "Segoe UI Symbol", system-ui, sans-serif;
+    height: 0.55em; margin-bottom: -0.02em; transform: scaleX(1.05); }
+  .uv { font: italic 400 1.05em "Cambria Math", Georgia, serif; color: inherit; }
+  .tn { font: 700 0.95em "Segoe UI", system-ui, sans-serif; color: inherit; }
+  .notation { font-size: 14px; color: var(--muted); border-left: 3px solid var(--axis); padding: 2px 0 2px 10px; }
+  .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; margin: 16px 0; }
+  .card-title { font-weight: 600; margin-bottom: 4px; }
+  .card-sub { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  .ctl { display: grid; grid-template-columns: 170px 1fr 92px; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; color: var(--text-2); }
+  .ctl output { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+  @media (max-width: 600px) { .ctl { grid-template-columns: 1fr 84px; } .ctl input { grid-column: 1 / -1; grid-row: 2; } }
+  input[type=range] { width: 100%; accent-color: var(--s1); }
+  .result { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 12px; }
+  .result div { background: var(--page); border: 1px solid var(--ring); border-radius: 8px; padding: 8px 10px; }
+  .result .big { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+  .result .lbl { font-size: 12px; color: var(--muted); }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+  .presets button { font: inherit; font-size: 13px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--axis);
+    background: var(--surface); color: var(--text); cursor: pointer; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  td, th { padding: 6px 8px; border-bottom: 1px solid var(--grid); text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
+  th { color: var(--muted); font-weight: 500; vertical-align: bottom; }
+  td:first-child, th:first-child { text-align: left; color: var(--text); }
+  .scroll { overflow-x: auto; }
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps li { counter-increment: s; position: relative; padding-left: 34px; margin: 8px 0; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--s1); color: #fff; font-size: 13px; font-weight: 700; text-align: center; line-height: 24px; }
+  .note { font-size: 14px; color: var(--muted); }
+  figure { margin: 16px 0; }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  svg { display: block; width: 100%; height: auto; }
+  .ink { stroke: var(--text); fill: none; }
+  .soft { stroke: var(--axis); fill: none; }
+  .lbl-svg { fill: var(--text-2); font: 13px system-ui, sans-serif; }
+  .refs li { font-size: 14px; margin: 4px 0; }
+</style>
+</head>
+<body>
+<main>
+  <nav class="top"><a href="index.html">← Back to the game</a><a href="results.html">Simulation results</a></nav>
+  <h1>The physics of a falling cat</h1>
+  <p class="lede">A cat dropped upside down lands on its feet, with nothing to push against. Here is how that's possible,
+    from moment of inertia and angular momentum up to the exact moves the cats in the game use.
+    The numbers on this page are computed live by the same code that runs the game.</p>
+  <p class="notation">Notation: scalars in italics (<var>m</var>, <var>θ</var>); vectors with an arrow above (<b class="vc">L</b>, <b class="vc">ω</b>, <b class="vc">r</b>,
+    and the zero vector <b class="vc">0</b>); unit vectors with a hat (<b class="uv">x̂</b>, <b class="uv">n̂</b>); second-rank tensors (3×3 matrices) in bold upright
+    sans-serif (<b class="tn">I</b>, <b class="tn">J</b>). The magnitude of a vector is written without the arrow (<var>v</var> = |<b class="vc">v</b>|).</p>
+  <ol class="toc">
+    <li><a href="#puzzle">The puzzle</a></li>
+    <li><a href="#mechanics">Rotation in classical mechanics</a></li>
+    <li><a href="#inertia">Moment of inertia</a></li>
+    <li><a href="#momentum">Angular momentum and its conservation</a></li>
+    <li><a href="#tuck-turn">Move 1: tuck and turn</a></li>
+    <li><a href="#bend-twist">Move 2: bend and twist</a></li>
+    <li><a href="#geometry">Why a loop of shapes gives a turn</a></li>
+    <li><a href="#pump">Move 3: the leg pump (pitch)</a></li>
+    <li><a href="#moves">A whole righting, step by step</a></li>
+    <li><a href="#timing">How much time there is</a></li>
+    <li><a href="#landing">Landing, impact and air drag</a></li>
+    <li><a href="#zero-g">Zero gravity</a></li>
+    <li><a href="#models">The four model cats, by the numbers</a></li>
+    <li><a href="#engine">How the simulation computes it</a></li>
+    <li><a href="#reading">Further reading</a></li>
+  </ol>
+
+  <h2 id="puzzle">The puzzle</h2>
+  <p>In 1894 Étienne-Jules Marey photographed a falling cat in a rapid series of frames, and the French Academy of Sciences argued about it. A
+    falling cat starts with no spin, has nothing to push on, and still ends up turned over. It looked as if it broke one of the laws
+    of mechanics. It doesn't. The cat changes its <b>shape</b>, and a body that can change shape can change which way it faces
+    without ever spinning.</p>
+  <p>Gravity doesn't help or hurt the turn. It pulls on every part of the cat in proportion to that part's mass, so its torque about the
+    centre of mass is</p>
+  <span class="eq"><b class="vc">τ</b><sub>g</sub> = Σ <b class="vc">r</b><sub><var>i</var></sub> × <var>m<sub>i</sub></var><b class="vc">g</b> = (Σ <var>m<sub>i</sub></var><b class="vc">r</b><sub><var>i</var></sub>) × <b class="vc">g</b> = <b class="vc">0</b>
+    <small>because Σ <var>m<sub>i</sub></var><b class="vc">r</b><sub><var>i</var></sub> = <b class="vc">0</b> when <b class="vc">r</b><sub><var>i</var></sub> is measured from the centre of mass</small></span>
+  <p>Gravity only sets how long the cat has before it hits the ground.</p>
+
+  <h2 id="mechanics">Rotation in classical mechanics</h2>
+  <p>Newton's second law for straight-line motion, <b class="vc">F</b> = d<b class="vc">p</b>/d<var>t</var>, has a twin for rotation:</p>
+  <span class="eq"><b class="vc">τ</b> = d<b class="vc">L</b>/d<var>t</var> <small>torque = rate of change of angular momentum, both taken about the centre of mass</small></span>
+  <p>Both are vectors: they have a direction (the axis of the turning) as well as a size. Torque <b class="vc">τ</b> plays the role of force, and
+    angular momentum <b class="vc">L</b> plays the role of momentum. With no torque, <b class="vc">L</b> cannot change, in size or direction. A cat dropped
+    without spin has <b class="vc">L</b> = <b class="vc">0</b>, and in free fall (gravity gives no torque about the centre of mass, and air drag on a falling cat
+    gives very little) it keeps <b class="vc">L</b> = <b class="vc">0</b> all the way down. Taking moments about the centre of mass is what makes this work even
+    though the cat is accelerating downward.</p>
+  <p>The catch: <b class="vc">L</b> = <b class="vc">0</b> does <i>not</i> mean the cat can't change its orientation. For a rigid body it would:
+    <b class="vc">L</b> = <b class="tn">I</b><b class="vc">ω</b>, and the inertia tensor <b class="tn">I</b> is positive definite (invertible), so
+    <b class="vc">L</b> = <b class="vc">0</b> forces <b class="vc">ω</b> = <b class="vc">0</b>. A cat isn't rigid.</p>
+
+  <h2 id="inertia">Moment of inertia</h2>
+  <p>Moment of inertia is to rotation what mass is to straight-line motion: how hard a body is to set spinning. Unlike mass, it is
+    not a single number. In three dimensions it is a <b>tensor</b>, a 3×3 symmetric matrix, because how hard a body is to spin depends on
+    the axis. For point masses at positions <b class="vc">r</b><sub><var>i</var></sub> from the reference point:</p>
+  <span class="eq"><b class="tn">I</b> = Σ <var>m<sub>i</sub></var> ( |<b class="vc">r</b><sub><var>i</var></sub>|<sup>2</sup> <b class="tn">1</b> − <b class="vc">r</b><sub><var>i</var></sub> <b class="vc">r</b><sub><var>i</var></sub><sup>T</sup> ),
+    &nbsp; i.e. &nbsp; <var>I<sub>jk</sub></var> = Σ <var>m<sub>i</sub></var> ( <var>r<sub>i</sub></var><sup>2</sup> <var>δ<sub>jk</sub></var> − <var>r<sub>i,j</sub></var> <var>r<sub>i,k</sub></var> )
+    <small><b class="tn">1</b> = identity, <var>δ<sub>jk</sub></var> = Kronecker delta</small></span>
+  <p>The scalar "moment of inertia about an axis" is one number taken from this tensor. For the axis along the unit vector
+    <b class="uv">n̂</b>:</p>
+  <span class="eq"><var>I<sub>n</sub></var> = <b class="uv">n̂</b> · <b class="tn">I</b> <b class="uv">n̂</b> = Σ <var>m<sub>i</sub></var> <var>r</var><sub>⊥<var>i</var></sub><sup>2</sup>
+    <small><var>r</var><sub>⊥<var>i</var></sub> = perpendicular distance of each mass from that axis</small></span>
+  <p>Because the distance is squared, mass far out counts a lot. A figure skater spins faster by pulling in their arms. A cat
+    makes half of its body "light" or "heavy" to rotate by tucking or spreading that half's legs. In a frame lined up with a body's
+    symmetry axes the tensor is diagonal; its three diagonal entries (the <b>principal moments</b>) are scalars.</p>
+  <p>The model cats are built from solid cylinders (the body halves) and point masses (the legs). A solid cylinder of mass
+    <var>m</var>, radius <var>r</var> and length <var>ℓ</var>, about its centre in its own frame (<var>x</var> along its axis):</p>
+  <span class="eq"><b class="tn">I</b><sub>cyl</sub> = diag( ½ <var>m r</var><sup>2</sup>, &nbsp;<var>m</var>(3<var>r</var><sup>2</sup> + <var>ℓ</var><sup>2</sup>)/12, &nbsp;<var>m</var>(3<var>r</var><sup>2</sup> + <var>ℓ</var><sup>2</sup>)/12 )
+    <small>principal moments: about its long axis, and across it</small></span>
+  <p>When the half turns relative to the cat, its tensor turns with it: <b class="tn">I</b>′ = <b class="tn">R</b> <b class="tn">I</b> <b class="tn">R</b><sup>T</sup>,
+    where <b class="tn">R</b> is the half's rotation matrix. That is what makes it a tensor rather than just a table of numbers. A leg of mass <var>m</var>
+    at perpendicular distance <var>d</var> from the half's long axis adds <var>m d</var><sup>2</sup> to the moment about that axis (and, because the legs hang
+    below the spine rather than around it, off-diagonal "products of inertia" to the full tensor).</p>
+  <div class="card">
+    <div class="card-title">Model B's front half: moment of inertia about its own long axis</div>
+    <div class="card-sub"><var>I</var><sub>∥</sub> = <b class="uv">x̂</b> · <b class="tn">I</b> <b class="uv">x̂</b> for the body cylinder plus the two front legs, computed from the game's model</div>
+    <div class="result" id="inertia-tiles"></div>
+    <p class="note" id="inertia-note"></p>
+  </div>
+
+  <h2 id="momentum">Angular momentum and its conservation</h2>
+  <p>For a single rigid body with angular velocity <b class="vc">ω</b>, angular momentum about its centre of mass is the inertia tensor acting on
+    the angular velocity vector:</p>
+  <span class="eq"><b class="vc">L</b> = <b class="tn">I</b> <b class="vc">ω</b> <small>a matrix times a vector, so <b class="vc">L</b> need not point along <b class="vc">ω</b> unless <b class="vc">ω</b> lies along a principal axis</small></span>
+  <p>A cat is several bodies (body halves, legs) moving relative to one another. Its total angular momentum about its centre of
+    mass adds up every part's own spin plus each part's motion around the centre:</p>
+  <span class="eq"><b class="vc">L</b> = Σ<sub><var>i</var></sub> [ <b class="tn">I</b><sub><var>i</var></sub> <b class="vc">ω</b><sub><var>i</var></sub> + <var>m<sub>i</sub></var> <b class="vc">r</b><sub><var>i</var></sub> × <b class="vc">v</b><sub><var>i</var></sub> ] = <b class="vc">0</b>
+    <small><b class="tn">I</b><sub><var>i</var></sub>: part <var>i</var>'s inertia tensor about its own centre of mass; <b class="vc">ω</b><sub><var>i</var></sub>: its angular velocity;
+    <b class="vc">r</b><sub><var>i</var></sub>, <b class="vc">v</b><sub><var>i</var></sub>: position and velocity of its centre of mass relative to the cat's</small></span>
+  <p>This is a vector equation, so it is three equations at once: zero angular momentum about every axis.</p>
+  <p>This is the one law the whole game is built on. When the cat moves part of its body one way, the rest of it <b>has to</b> turn
+    the other way, just enough to keep the sum at zero. Which way, and how much, depends on the moments of inertia of the parts.</p>
+  <p>On its own, a change of shape that's later undone gives back exactly what it took: bend and unbend, and you end up facing the
+    same way. A net turn needs a <a href="#geometry">loop of shapes</a> in which the way out and the way back differ.</p>
+
+  <h2 id="tuck-turn">Move 1: tuck and turn</h2>
+  <p>The simplest way to turn over (model A's only move, described by Rademaker and ter Braak in the 1930s):</p>
+  <ol class="steps">
+    <li>Tuck the front legs and spread the back legs. The front half is now light (small <var>I</var>) and the back half heavy.</li>
+    <li>Twist the spine. With the spine straight, both halves turn about the same axis, the spine (unit vector <b class="uv">x̂</b>), so only the
+      component of <b class="vc">L</b> along it matters, and that component must stay zero:
+      <var>I</var><sub>F</sub><var>ω</var><sub>F</sub> + <var>I</var><sub>B</sub><var>ω</var><sub>B</sub> = 0. Here <var>I</var><sub>F</sub> = <b class="uv">x̂</b>·<b class="tn">I</b><sub>F</sub><b class="uv">x̂</b>
+      is a scalar (the moment about the spine) and <var>ω</var><sub>F</sub> = <b class="vc">ω</b><sub>F</sub>·<b class="uv">x̂</b> a scalar rate (the component along it).
+      So the light front half turns a long way and the heavy back half only a little.</li>
+    <li>Swap: spread the front legs, tuck the back legs.</li>
+    <li>Untwist. Now the back half is light, so this time <i>it</i> does most of the turning. The front half barely turns back.</li>
+  </ol>
+  <p>Each half turned further one way than it came back, so the whole cat is left rotated. Integrate the constraint over a twist <var>θ</var>
+    (the relative angle <var>φ</var><sub>F</sub> − <var>φ</var><sub>B</sub>) between a light half of moment <var>I<sub>L</sub></var> and a heavy half
+    <var>I<sub>H</sub></var>: the light half turns <var>θ I<sub>H</sub></var>/(<var>I<sub>L</sub></var> + <var>I<sub>H</sub></var>) and the heavy half
+    −<var>θ I<sub>L</sub></var>/(<var>I<sub>L</sub></var> + <var>I<sub>H</sub></var>). Untwisting with the roles swapped and adding up gives the net roll per cycle:</p>
+  <span class="eq">Δ<var>φ</var> = <var>θ</var> (<var>I<sub>H</sub></var> − <var>I<sub>L</sub></var>) / (<var>I<sub>H</sub></var> + <var>I<sub>L</sub></var>)
+    <small>exact if each half's moment about the spine is fixed and the spine stays straight (the legs move only at the swaps)</small></span>
+  <div class="card">
+    <div class="card-title">Try it: one tuck-and-turn cycle</div>
+    <div class="card-sub">Moments of inertia about the spine. Presets use model B's halves with legs tucked or spread.</div>
+    <div class="presets" id="tt-presets"></div>
+    <div class="ctl"><span>Light half <var>I<sub>L</sub></var></span><input type="range" id="tt-il" min="20" max="200" step="1"><output id="tt-il-out"></output></div>
+    <div class="ctl"><span>Heavy half <var>I<sub>H</sub></var></span><input type="range" id="tt-ih" min="20" max="200" step="1"><output id="tt-ih-out"></output></div>
+    <div class="ctl"><span>Twist <var>θ</var></span><input type="range" id="tt-th" min="0" max="180" step="5" value="180"><output id="tt-th-out"></output></div>
+    <div class="result" id="tt-result"></div>
+    <p class="note" id="tt-note"></p>
+  </div>
+  <p>Tuck and turn works but is slow. A real cat's spine can also <i>bend</i>, which gives a much faster move.</p>
+
+  <h2 id="bend-twist">Move 2: bend and twist</h2>
+  <p>Kane and Scher (1969) modelled the cat as two cylinders joined at the spine. Bend the spine into a V, then sweep the
+    direction of the bend around in a circle, like a hula hoop: belly side, one flank, back, the other flank, belly again.</p>
+  <figure>
+    <svg viewBox="0 0 640 210" role="img" aria-label="Two cylinders joined at the spine, bent into a V, with the bend direction sweeping around the long axis">
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--s2)"/></marker></defs>
+      <line x1="40" y1="120" x2="600" y2="120" class="soft" stroke-dasharray="5 5"/>
+      <text x="604" y="124" class="lbl-svg">long axis</text>
+      <g transform="rotate(-14 320 120)"><rect x="140" y="92" width="180" height="56" rx="28" class="ink" stroke-width="2"/></g>
+      <g transform="rotate(14 320 120)"><rect x="320" y="92" width="180" height="56" rx="28" class="ink" stroke-width="2"/></g>
+      <circle cx="320" cy="120" r="5" fill="var(--text)"/>
+      <text x="300" y="186" class="lbl-svg">spine joint</text>
+      <text x="150" y="58" class="lbl-svg">front half</text>
+      <text x="430" y="58" class="lbl-svg">back half</text>
+      <ellipse cx="320" cy="120" rx="18" ry="58" fill="none" stroke="var(--s2)" stroke-width="2.5" marker-end="url(#ah)" stroke-dasharray="300 70"/>
+      <text x="346" y="40" class="lbl-svg" style="fill:var(--s2)">bend direction sweeps around</text>
+    </svg>
+    <figcaption>Each half spins about its own long axis as the bend sweeps around. The halves are tilted to each other, so their spins
+      don't cancel, and the body as a whole rolls the opposite way.</figcaption>
+  </figure>
+  <p>Kane and Scher solved this exactly for two identical, axially symmetric halves bent by 2<var>β</var>. One full lap of the sweep rolls the
+    whole cat by:</p>
+  <span class="eq">Δ<var>ψ</var> = 2π ( <var>A</var> cos <var>β</var> / (<var>A</var> cos<sup>2</sup><var>β</var> + <var>B</var> sin<sup>2</sup><var>β</var>) − 1 )
+    <small><var>A</var>, <var>B</var>: a half's principal moments (scalars) about its own axis and across it, through its own centre of mass</small></span>
+  <p>For a solid cylinder <var>B</var>/<var>A</var> = ½ + <var>ℓ</var><sup>2</sup>/(6<var>r</var><sup>2</sup>) ≥ ½, which makes the fraction less than 1, so Δ<var>ψ</var> is
+    negative: the body rolls the opposite way to the sweep. For a small bend it is about
+    −2π<var>β</var><sup>2</sup>(<var>B</var>/<var>A</var> − ½), which is why the roll grows with the square of the bend.</p>
+  <p>A cat is long and thin, so <var>A</var> is smaller than <var>B</var> (about a third for model B's body), and a deep bend gives a big roll. Tucking the legs
+    shrinks <var>A</var> further, which is why the computer optimizer, and now the game's reflex, tucks all four legs while sweeping.
+    The game's engine reproduces this formula to within 0.0003° (see the <a href="results.html">results page</a>).</p>
+  <div class="card">
+    <div class="card-title">Try it: roll per lap of the sweep</div>
+    <div class="card-sub">Kane–Scher formula for model B's body halves (legless, as in the 1969 model)</div>
+    <div class="ctl"><span>Spine bend 2<var>β</var></span><input type="range" id="ks-bend" min="0" max="140" step="5" value="100"><output id="ks-bend-out"></output></div>
+    <div class="ctl"><span>Body radius</span><input type="range" id="ks-r" min="3" max="10" step="0.5" value="6"><output id="ks-r-out"></output></div>
+    <div class="result" id="ks-result"></div>
+  </div>
+
+  <h2 id="geometry">Why a loop of shapes gives a turn</h2>
+  <p>Picture every shape the cat can make as a point in a "shape space": spine bend, bend direction, twist, leg positions. A righting
+    move is a path through that space that starts and ends at the same shape. Shapere and Wilczek (1989) showed that the net turn
+    depends only on the <b>path</b>, not on how fast the cat moves along it. It's a geometric effect, a cousin of the Berry phase in
+    quantum mechanics and the reason a parallel-parked car can move sideways.</p>
+  <p>Mathematically, <b class="vc">L</b> = <b class="vc">0</b> gives the body's rotation rate as a function of the shape and its rate of change:
+    <b class="vc">Ω</b> = −<b class="tn">J</b>(<var>s</var>)<sup>−1</sup><b class="vc">h</b>(<var>s</var>, <var>ṡ</var>), linear in <var>ṡ</var>. The turn produced
+    by a small change of shape depends on which shape you are in when you make it. In the language of differential geometry this
+    "connection" has curvature: the turn is not the change of any function of the shape, so going around a loop does not bring it back to zero.
+    Moving back along the same path cancels the turn; moving around a loop leaves something over, roughly the curvature times the area the loop encloses.</p>
+  <p>This does not need rotations to fail to commute. Putterman and Raz's "square cat" rotates itself in a flat plane, where all rotations
+    commute, by exactly this effect. In three dimensions the non-commuting rotations add extra terms on top, which is one reason the exact
+    Kane–Scher result above is not just a simple area formula.</p>
+
+  <h2 id="pump">Move 3: the leg pump (pitch)</h2>
+  <p>Bend and twist fixes the <b>roll</b> (rotation about the spine). A cat can also be tipped nose up or nose down (<b>pitch</b>).
+    The game's cats fix it with tuck and turn applied to the bend instead of the twist:</p>
+  <ol class="steps">
+    <li>Tuck one pair of legs: that half becomes light.</li>
+    <li>Bend toward the belly. The light half swings further than the heavy half.</li>
+    <li>Swap which legs are tucked.</li>
+    <li>Straighten. Now the other half swings further, so the halves don't return to where they started and the body is left tipped.</li>
+  </ol>
+  <p>Tucking the front legs first tips the nose down; tucking the back legs first tips it up. One full pump turns the cat by
+    <span id="pump-gains">…</span> and takes about 0.4 s, so the cats do it only when there's time left after rolling upright.</p>
+
+  <h2 id="moves">A whole righting, step by step</h2>
+  <p>This is what the cats in Watch mode do, and what the narrator panel describes as it happens:</p>
+  <ol class="steps">
+    <li><b>Sensing the fall</b> (about 50–100 ms). The inner ear notices free fall. Until the shape changes, nothing turns.</li>
+    <li><b>Bend and twist, legs tucked.</b> A deep bend swept around against the roll still needed. This does most of the turning.</li>
+    <li><b>Easing in.</b> With less than about 45° to go, the bend eases off (roll per lap grows roughly with the bend squared, so a full
+      bend would overshoot) and the legs come half out.</li>
+    <li><b>Leg pump</b>, if the nose is tipped and there's time.</li>
+    <li><b>Ready to land.</b> Straight spine, legs spread, knees nearly straight (models C and D) for the longest cushioning stroke.</li>
+    <li><b>Touchdown.</b> The legs absorb the impact (below).</li>
+  </ol>
+  <p>Model A can't bend, so it repeats tuck-and-turn cycles instead. Each cycle also tips its nose a little, because the legs hang below the
+    spine, so it alternates front-first and back-first cycles so the tips cancel. In model D the flexible front spine does most of the work:
+    the optimizer found that turning the front half first, with its legs tucked, lands from lower drops.</p>
+
+  <h2 id="timing">How much time there is</h2>
+  <p>Ignoring air drag, a drop from height <var>h</var> takes</p>
+  <span class="eq"><var>t</var> = √(2<var>h</var>/<var>g</var>) <small><var>g</var> = 9.81 m/s²</small></span>
+  <p>so 1 m gives 0.45 s and 30 cm gives 0.25 s. The game's cats need about 0.37 s for a perfect righting from upside down, close to what real
+    cats manage (0.3–0.4 s), plus their reaction delay.</p>
+
+  <h2 id="landing">Landing, impact and air drag</h2>
+  <p>On touchdown the paws stop, but the body keeps moving and sinks while the legs fold, over a distance <var>d</var> (the stroke). Stopping from
+    speed <var>v</var> (= |<b class="vc">v</b>|) over <var>d</var> at a steady rate takes a deceleration of magnitude <var>a</var> = <var>v</var>²/2<var>d</var>, pointing up.
+    The ground must supply that plus the cat's weight, <var>N</var> = <var>m</var>(<var>g</var> + <var>a</var>), so the load in body weights (<var>N</var>/<var>mg</var>) is:</p>
+  <span class="eq">impact = 1 + <var>v</var><sup>2</sup>/(2<var>g d</var>) = 1 + <var>h</var>/<var>d</var> body weights <small>all magnitudes; second form: no air drag, so <var>v</var><sup>2</sup> = 2<var>gh</var></small></span>
+  <p>That second form is striking: the impact is just 1 plus <b>drop height divided by stopping distance</b>. Rigid legs stop the body in about 2 cm,
+    so a 1 m drop means about 50× body weight. Model C's jointed legs fold over about 16 cm, which is about 7×. That's why a cat lands with straight legs and
+    lets them fold.</p>
+  <div class="card">
+    <div class="card-title">Try it: drop and landing</div>
+    <div class="card-sub">No air drag (it matters only above a few metres)</div>
+    <div class="ctl"><span>Drop height <var>h</var></span><input type="range" id="ld-h" min="0.3" max="10" step="0.1" value="3"><output id="ld-h-out"></output></div>
+    <div class="ctl"><span>Stopping distance <var>d</var></span><input type="range" id="ld-d" min="1" max="20" step="1" value="16"><output id="ld-d-out"></output></div>
+    <div class="result" id="ld-result"></div>
+  </div>
+  <h3>Air drag and terminal speed</h3>
+  <p>Air pushes back against the motion. As a vector the drag force points opposite the velocity:</p>
+  <span class="eq"><b class="vc">F</b><sub>d</sub> = −½ <var>ρ</var> <var>C<sub>d</sub>A</var> |<b class="vc">v</b>| <b class="vc">v</b>, &nbsp;&nbsp; so &nbsp; <var>F</var><sub>d</sub> = |<b class="vc">F</b><sub>d</sub>| = ½ <var>ρ</var> <var>C<sub>d</sub>A</var> <var>v</var><sup>2</sup></span>
+  <p>Its size grows with the square of the speed until it balances the cat's weight <var>mg</var>. At that <b>terminal speed</b> the cat stops speeding up:</p>
+  <span class="eq"><var>v<sub>t</sub></var> = √(2<var>mg</var> / (<var>ρ</var> <var>C<sub>d</sub>A</var>)) <small><var>ρ</var> = 1.2 kg/m³ for air</small></span>
+  <p>For a 4 kg cat with spread legs (<var>C<sub>d</sub>A</var> ≈ 0.09 m²) that's about <b>27 m/s</b> (60 mph), and tucked (0.05 m²) about 36 m/s.
+    Spreading the legs works like a parachute. The approach is gradual: a cat falling 7 floors (21 m) is already at about two-thirds of
+    terminal speed, and from higher floors the speed barely climbs. The <a href="results.html">results page</a> (high-rise falls) shows that speed
+    alone doesn't explain why vets saw fewer injuries in cats falling from higher.</p>
+
+  <h2 id="zero-g">Zero gravity</h2>
+  <p>In a parabolic-flight cabin everything floats, cat included. The cat can still turn by changing shape, exactly as in a fall. The
+    problem is knowing which way to turn. The inner ear has two kinds of sensor. The semicircular canals sense rotation, and they still work. The otoliths
+    sense linear acceleration relative to free fall (gravity minus the body's own acceleration), which is zero when everything falls together.
+    So the cat can still feel itself turning but can't feel which way is down, and "down" has to come from somewhere else: seeing the floor, or remembering where down was. In the game, the cat steers toward where it <i>believes</i> down is (the white ring on
+    the gauge). If it can see the floor, it stays feet-down; if its sense of down is gone, it turns and turns without getting anywhere.</p>
+
+  <h2 id="models">The four model cats, by the numbers</h2>
+  <p>All four weigh 4 kg. These are computed now, in your browser, from the game's own models. The safe heights come from the lab's saved runs.</p>
+  <div class="card scroll"><table id="model-table"><tr><td>Computing…</td></tr></table></div>
+  <p class="note">"Front half <var>I</var><sub>∥</sub>" is the scalar moment of inertia <b class="uv">x̂</b>·<b class="tn">I</b><b class="uv">x̂</b> of the front body half and its legs about its own long axis. A roll per lap is one full sweep of the bend
+    direction at full bend. A roll per cycle is one tuck-and-turn cycle at the full twist.</p>
+
+  <h2 id="engine">How the simulation computes it</h2>
+  <p>The engine never applies a turning force to the cat. At every time step (every 0.5 ms of simulated time) it looks at how each body part
+    moved because of the change of shape, and works out the one rotation of the whole cat that keeps the total angular momentum at zero:</p>
+  <span class="eq"><b class="tn">J</b>(<var>s</var>) <b class="vc">Ω</b> = −<b class="vc">h</b>(<var>s</var>, <var>ṡ</var>)</span>
+  <p>Here <var>s</var> is the list of shape settings (bend, bend direction, twist, legs, knees). It is a point in shape space, not a vector in physical space.
+    The other symbols:</p>
+  <ul>
+    <li><b class="tn">J</b> = Σ [ <b class="tn">I</b><sub><var>i</var></sub> + <var>m<sub>i</sub></var>(|<b class="vc">r</b><sub><var>i</var></sub>|<sup>2</sup><b class="tn">1</b> − <b class="vc">r</b><sub><var>i</var></sub><b class="vc">r</b><sub><var>i</var></sub><sup>T</sup>) ]
+      is the whole cat's inertia tensor about its centre of mass in its current shape, with each part's tensor rotated into the cat frame (<b class="tn">R</b>&thinsp;<b class="tn">I</b>&thinsp;<b class="tn">R</b><sup>T</sup>).</li>
+    <li><b class="vc">h</b> = Σ [ <b class="tn">I</b><sub><var>i</var></sub><b class="vc">w</b><sub><var>i</var></sub> + <var>m<sub>i</sub></var> <b class="vc">r</b><sub><var>i</var></sub> × d<b class="vc">r</b><sub><var>i</var></sub>/d<var>t</var> ]
+      is the angular momentum the shape change alone would carry, where <b class="vc">w</b><sub><var>i</var></sub> and d<b class="vc">r</b><sub><var>i</var></sub>/d<var>t</var> are each part's motion relative to the cat frame.</li>
+    <li><b class="vc">Ω</b> is the cat frame's angular velocity, the unknown.</li>
+  </ul>
+  <p>Solving that 3×3 linear system gives <b class="vc">Ω</b>, and the orientation matrix is advanced by <b class="tn">R</b> ← <b class="tn">R</b> <span style="white-space:nowrap">exp([<b class="vc">Ω</b>]<sub>×</sub>Δ<var>t</var>)</span>, where
+    [<b class="vc">Ω</b>]<sub>×</sub> is the skew-symmetric matrix with [<b class="vc">Ω</b>]<sub>×</sub><b class="vc">x</b> = <b class="vc">Ω</b> × <b class="vc">x</b> (the matrix exponential is a rotation by |<b class="vc">Ω</b>|Δ<var>t</var> about <b class="vc">Ω</b>).
+    The |<b class="vc">L</b>| readout in the game then measures angular momentum independently from the motion of every part, as a check; it stays at rounding-error level.</p>
+
+  <h2 id="reading">Further reading</h2>
+  <ul class="refs">
+    <li>T. R. Kane &amp; M. P. Scher, "A dynamical explanation of the falling cat phenomenon", <i>Int. J. Solids Structures</i> 5, 663 (1969).</li>
+    <li>H. Essén, "The cat landing on its feet revisited", <i>Am. J. Phys.</i> 49, 756 (1981).</li>
+    <li>A. Shapere &amp; F. Wilczek, "Gauge kinematics of deformable bodies", <i>Am. J. Phys.</i> 57, 514 (1989).</li>
+    <li>J. E. Fredrickson, "The tail-less cat in free-fall", <i>The Physics Teacher</i> 27, 620 (1989).</li>
+    <li>J. R. Galli, "Angular momentum conservation and the cat twist", <i>The Physics Teacher</i> 33, 404 (1995).</li>
+    <li>S. Putterman &amp; O. Raz, "The square cat", <i>Am. J. Phys.</i> 76, 1040 (2008).</li>
+    <li>G. Gbur, <i>Falling Felines and Fundamental Physics</i> (Yale University Press, 2019).</li>
+  </ul>
+</main>
+
+<script src="js/math3.js"></script>
+<script src="js/physics.js"></script>
+<script src="js/models/twoCylinder.js"></script>
+<script src="js/models/modelA.js"></script>
+<script src="js/models/modelB.js"></script>
+<script src="js/models/modelC.js"></script>
+<script src="js/models/modelD.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/narrator.js"></script>
+<script src="lab/results/data.js"></script>
+<script>
+(function () {
+  const deg = Math.PI / 180, G = 9.81, KGCM2 = 1e4;
+  const $ = (id) => document.getElementById(id);
+  const M = (id) => FC.models.find((m) => m.id === id);
+  const neutral = (m, extra) => ({ ...FC.sim.neutral(m), ...extra });
+  const legs = (m, x) => neutral(m, { front: x, back: x });
+  const tile = (big, lbl) => `<div><div class="big">${big}</div><div class="lbl">${lbl}</div></div>`;
+
+  // ---------- moment of inertia tiles (model B, front half) ----------
+  const B = M("B");
+  const [ItB] = FC.narrator.halfInertia(B, legs(B, 0));
+  const [IsB] = FC.narrator.halfInertia(B, legs(B, 1));
+  const Icyl = B.params.halfMass * B.params.radius ** 2 / 2;
+  $("inertia-tiles").innerHTML = tile(`${(Icyl * KGCM2).toFixed(0)} kg·cm²`, "body cylinder alone, ½mr²") +
+    tile(`${(ItB * KGCM2).toFixed(0)} kg·cm²`, "with front legs tucked") + tile(`${(IsB * KGCM2).toFixed(0)} kg·cm²`, "with front legs spread");
+  $("inertia-note").textContent = `The legs are only ${(100 * 2 * B.params.legMass / (B.params.halfMass + 2 * B.params.legMass)).toFixed(0)}% ` +
+    `of the half's mass, but spreading them makes the half ${(IsB / ItB).toFixed(1)}× harder to spin about the spine.`;
+
+  // ---------- tuck-and-turn calculator ----------
+  const il = $("tt-il"), ih = $("tt-ih"), th = $("tt-th");
+  il.value = Math.round(ItB * KGCM2); ih.value = Math.round(IsB * KGCM2);
+  $("tt-presets").innerHTML = [["Model B: tucked vs spread", ItB, IsB], ["Equal halves", IsB, IsB], ["Extreme", ItB / 2, IsB * 1.5]]
+    .map(([n, a, b]) => `<button data-a="${Math.round(a * KGCM2)}" data-b="${Math.round(b * KGCM2)}">${n}</button>`).join("");
+  $("tt-presets").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    il.value = b.dataset.a; ih.value = b.dataset.b; tt();
+  });
+  const A = M("A"), twistMaxA = A.controls.find((c) => c.key === "twist").max;
+  const cycleA = Math.abs(A.getCycleGain() * twistMaxA) / deg;
+  function tt() {
+    const L = +il.value, H = +ih.value, t = +th.value;
+    $("tt-il-out").textContent = `${L} kg·cm²`; $("tt-ih-out").textContent = `${H} kg·cm²`; $("tt-th-out").textContent = `${t}°`;
+    const light = t * H / (L + H), heavy = t * L / (L + H), net = t * (H - L) / (H + L);
+    $("tt-result").innerHTML = tile(`${light.toFixed(0)}°`, "light half turns, during the twist") + tile(`${heavy.toFixed(0)}°`, "heavy half turns the other way") +
+      tile(`${net.toFixed(0)}°`, "net roll after the cycle");
+    $("tt-note").textContent = H <= L ? "With equal halves the cycle undoes itself: no net turn." :
+      `The full simulation of model A gives ${cycleA.toFixed(0)}° per 180° cycle, a little less than this one-axis estimate. The legs hang below the spine, ` +
+      "so each half's inertia tensor has off-diagonal terms (products of inertia) and the spine is not a principal axis. Twisting about it then also " +
+      "makes the body turn about the other two axes, which the scalar formula leaves out.";
+  }
+  [il, ih, th].forEach((x) => x.addEventListener("input", tt)); tt();
+
+  // ---------- Kane–Scher calculator ----------
+  function ks() {
+    const bend = +$("ks-bend").value, r = +$("ks-r").value / 100, P = B.params;
+    $("ks-bend-out").textContent = `${bend}°`; $("ks-r-out").textContent = `${(r * 100).toFixed(1)} cm`;
+    const b = (bend / 2) * deg, Aa = P.halfMass * r * r / 2, Bb = P.halfMass * (3 * r * r + P.halfLen ** 2) / 12;
+    const roll = 360 * ((Aa * Math.cos(b)) / (Aa * Math.cos(b) ** 2 + Bb * Math.sin(b) ** 2) - 1);
+    const laps = Math.abs(roll) > 0.5 ? (180 / Math.abs(roll)).toFixed(1) : "∞";
+    $("ks-result").innerHTML = tile(`${Math.abs(roll).toFixed(0)}°`, "roll per lap of the sweep") + tile(laps, "laps to turn over (180°)") +
+      tile(`${(Bb / Aa).toFixed(1)}`, "B / A (bigger for a longer, thinner body)");
+  }
+  ["ks-bend", "ks-r"].forEach((id) => $(id).addEventListener("input", ks)); ks();
+
+  // ---------- landing calculator ----------
+  function ld() {
+    const h = +$("ld-h").value, d = +$("ld-d").value / 100;
+    $("ld-h-out").textContent = `${h.toFixed(1)} m`; $("ld-d-out").textContent = `${(d * 100).toFixed(0)} cm`;
+    const v = Math.sqrt(2 * G * h);
+    $("ld-result").innerHTML = tile(`${Math.sqrt(2 * h / G).toFixed(2)} s`, "fall time") + tile(`${v.toFixed(1)} m/s`, `landing speed (${(v * 3.6).toFixed(0)} km/h)`) +
+      tile(`${(1 + h / d).toFixed(0)}×`, "peak load, body weights");
+  }
+  ["ld-h", "ld-d"].forEach((id) => $(id).addEventListener("input", ld)); ld();
+
+  // ---------- live model numbers ----------
+  // Roll from one full sweep of the bend direction at full bend (unwrapped as it goes, since tucked laps can pass 180°).
+  function sweepRoll(m, legX, h = 5e-4) {
+    const full = m.controls.filter((c) => /^bend/.test(c.key)).reduce((a, c) => a + c.max, 0);
+    const base = { ...FC.sim.neutral(m), front: legX, back: legX };
+    const shapeAt = (dir) => m.split({ ...m.combine(base), bend: full, twist: 0, dir });
+    const rate = m.controls.find((c) => c.key === "dir").rate, n = Math.ceil(2 * Math.PI / rate / h);
+    let R = FC.m3.I(), roll = 0, prev = 0;
+    for (let i = 0; i < n; i++) {
+      R = FC.physics.step(m, R, shapeAt((2 * Math.PI * i) / n), shapeAt((2 * Math.PI * (i + 1)) / n), 1 / (rate / (2 * Math.PI)) / n).R;
+      const y = FC.m3.mv(R, [0, 1, 0]), a = Math.atan2(y[2], y[1]);
+      let d = a - prev; d -= 2 * Math.PI * Math.round(d / (2 * Math.PI));
+      roll += d; prev = a;
+    }
+    return Math.abs(roll) / deg;
+  }
+  const LABr = globalThis.LAB || {};
+  const rows = (LABr.reflex_experiment && LABr.reflex_experiment.rows) || [];
+  function safeHeight(id) {
+    const r = rows.find((x) => x.model === id && x.roll === 180 && x.variant === "tuck45") || rows.find((x) => x.model === id && x.roll === 180 && x.variant === "reflex");
+    return r ? `${r.minPerfectHeight.toFixed(2)} m` : "–";
+  }
+  const pumps = [];
+  setTimeout(() => {
+    let html = "<tr><th>Model</th><th>Front half <var>I</var><sub>∥</sub><br>tucked / spread</th><th>Roll per lap<br>legs spread</th><th>Roll per lap<br>legs tucked</th><th>Pitch per<br>leg pump</th><th>Lands upside-down<br>drops from</th></tr>";
+    for (const id of ["A", "B", "C", "D"]) {
+      const m = M(id);
+      const [It] = FC.narrator.halfInertia(m, legs(m, 0)), [Is] = FC.narrator.halfInertia(m, legs(m, 1));
+      const bend = m.bendable !== false;
+      const spread = bend ? `${sweepRoll(m, 1).toFixed(0)}°` : `${cycleA.toFixed(0)}° per cycle`;
+      const tucked = bend ? `${sweepRoll(m, 0).toFixed(0)}°` : "–";
+      const pump = bend ? `${(m.getPumpGain() / deg).toFixed(0)}°` : "–";
+      if (bend) pumps.push(`${pump} (model ${id})`);
+      html += `<tr><td>${m.name}</td><td>${(It * KGCM2).toFixed(0)} / ${(Is * KGCM2).toFixed(0)} kg·cm²</td><td>${spread}</td><td>${tucked}</td><td>${pump}</td><td>${safeHeight(id)}</td></tr>`;
+    }
+    $("model-table").innerHTML = html;
+    $("pump-gains").textContent = pumps.join(", ");
+  }, 30);
+})();
+</script>
+</body>
+</html>

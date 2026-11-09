@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Falling Cat Results</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+    --o1: #b7d3f6; --o2: #5598e7; --o3: #1c5cab; --o4: #0d366b; /* ordinal blue: perfect → back */
+    --o-ink: #0b0b0b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+      --o1: #184f95; --o2: #3987e5; --o3: #86b6ef; --o4: #cde2fb;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --o1: #184f95; --o2: #3987e5; --o3: #86b6ef; --o4: #cde2fb;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 28px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  h2 { font-size: 20px; margin: 40px 0 6px; }
+  h3 { font-size: 15px; margin: 18px 0 6px; color: var(--text-2); font-weight: 600; }
+  p, li { color: var(--text-2); max-width: 760px; }
+  a { color: var(--s1); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 20px 0 8px; }
+  .tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 14px 16px; }
+  .tile .big { font-size: 28px; font-weight: 700; line-height: 1.2; }
+  .tile .lbl { color: var(--text-2); font-size: 13px; }
+  .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; margin: 12px 0; position: relative; }
+  .card-title { font-weight: 600; margin-bottom: 2px; }
+  .card-sub { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 760px) { .row2 { grid-template-columns: 1fr; } }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--text-2); margin: 4px 0 6px; }
+  .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  .legend i.sq { width: 12px; height: 12px; border-radius: 3px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 8px 0; font-size: 14px; color: var(--text-2); }
+  select { font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--text); }
+  details.tbl { margin-top: 8px; font-size: 13px; }
+  details.tbl summary { cursor: pointer; color: var(--muted); }
+  details.tbl table { border-collapse: collapse; margin-top: 6px; }
+  details.tbl td, details.tbl th { padding: 3px 10px; border-bottom: 1px solid var(--grid); text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
+  details.tbl th { color: var(--muted); font-weight: 500; }
+  .tip { position: fixed; pointer-events: none; background: var(--surface); color: var(--text); border: 1px solid var(--ring);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18); border-radius: 8px; padding: 7px 10px; font-size: 13px; display: none; z-index: 10; }
+  .tip b { font-weight: 600; }
+  .tip .k { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .note { font-size: 13px; color: var(--muted); }
+  .missing { color: var(--muted); font-style: italic; }
+  code { font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Falling Cat: what the simulations found</h1>
+  <p>Four studies run on the game's physics engine (<a href="index.html">back to the game</a>). Every number
+  here was computed by the same code that runs the cat in the game.</p>
+  <div class="tiles" id="tiles"></div>
+  <div class="filters" id="page-filters">
+    <label>Model <select id="f-model"></select></label>
+    <span class="note">Picks the heat map's cat, and which cat stands out in the charts that compare all four.</span>
+  </div>
+
+  <h2>1 · Is the engine right?</h2>
+  <p>For the classic Kane–Scher cat (two identical cylinders, no legs), sweeping the spine's bend direction once
+  around has an exact answer: <code>Δroll = 360° · (A cos β / (A cos²β + B sin²β) − 1)</code>, with β half the bend
+  angle and A, B each half's principal moments of inertia (scalars, the diagonal entries of its inertia tensor) about its
+  own axis and across it, through its own centre of mass. The engine never uses this formula: it integrates the full vector
+  equation <b><i>L</i></b> = <b>0</b> with each body's 3×3 inertia tensor, so matching it is an independent check.</p>
+  <div class="card" id="val-card"></div>
+
+  <h2>2 · Survival map</h2>
+  <p>Thousands of drops with the cat's built-in reflex (roll upright, then pump out any nose-up/down tilt,
+  then spread its legs), covering every starting roll, pitch, height and reaction delay, with air drag.
+  The cat is left-right symmetric, so rolls from 0° to 180° cover every case.</p>
+  <div class="filters" id="surv-filters"></div>
+  <div class="row2">
+    <div class="card" id="heat-card"></div>
+    <div class="card" id="minh-card"></div>
+  </div>
+
+  <h2>3 · Can a computer find a better move?</h2>
+  <p>An evolution strategy (CMA-ES) searched timed sequences of all the body controls (spine bend, bend
+  direction, twist, both pairs of legs and, for models C and D, knees) for the lowest drop the cat can still land
+  perfectly from: feet within 20° of straight down, spine straight, legs spread. No reaction delay, with air drag.</p>
+  <div class="row2" id="opt-row"></div>
+  <div id="opt-notes"></div>
+
+  <h2>4 · High-rise falls</h2>
+  <p>Upside-down drops from half a metre to 30 floors (3 m per floor), 60 ms reflex. With air, a falling cat's
+  speed levels off toward a terminal speed: spread legs act like a parachute and cap it near 27 m/s (60 mph).</p>
+  <div class="row2">
+    <div class="card" id="hr-speed"></div>
+    <div class="card" id="hr-force"></div>
+  </div>
+  <div id="hr-notes"></div>
+
+  <h2>5 · Zero gravity</h2>
+  <p>In the 1940s and 50s, cats were flown on parabolic flights, giving about 20 s of weightlessness each time.
+  Films of those flights show the cats struggling to orient themselves: with no gravity, nothing tells them which
+  way is down. Here each cat floats in a cabin for 20 s from a random tilt, and its reflex steers toward where it
+  <i>believes</i> down is: the cabin floor it can see, a memory of down that slowly fades (drifts at random), or no
+  sense of down at all, so it keeps settling on a new random "down".</p>
+  <div class="row2">
+    <div class="card" id="zg-upright"></div>
+    <div class="card" id="zg-effort"></div>
+  </div>
+  <div id="zg-notes"></div>
+</main>
+<div class="tip" id="tip"></div>
+
+<script src="lab/results/data.js"></script>
+<script src="lab/results/data-survival.js"></script>
+<script>
+const LAB = window.LAB || {};
+const $ = (id) => document.getElementById(id);
+const css = (v) => `var(${v})`;
+const NS = "http://www.w3.org/2000/svg";
+const tip = $("tip");
+const fmt = (x, d = 2) => (x == null ? "–" : (+x).toFixed(d));
+
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function showTip(html, ev) {
+  tip.innerHTML = html;
+  tip.style.display = "block";
+  const x = Math.min(ev.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+  tip.style.left = `${x}px`;
+  tip.style.top = `${ev.clientY + 14}px`;
+}
+const hideTip = () => (tip.style.display = "none");
+
+function tableView(headers, rows) {
+  const d = document.createElement("details");
+  d.className = "tbl";
+  d.innerHTML = `<summary>Table view</summary><table><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>${rows
+    .map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</table>`;
+  return d;
+}
+
+function cardHead(card, title, sub) {
+  card.innerHTML = `<div class="card-title">${title}</div>${sub ? `<div class="card-sub">${sub}</div>` : ""}`;
+}
+
+function legend(card, items, square) {
+  const l = document.createElement("div");
+  l.className = "legend";
+  l.innerHTML = items.map(([name, color]) => `<span><i class="${square ? "sq" : ""}" style="background:${color}"></i>${name}</span>`).join("");
+  card.appendChild(l);
+}
+
+// Line chart with markers, hairline grid, crosshair + tooltip, direct end labels.
+// yLog: logarithmic y axis from yMin (> 0) to yMax, for values spanning orders of magnitude.
+function lineChart(card, { series, xLabel, yLabel, xFmt = (x) => x, yFmt = (y) => y, yMin = 0, yMax, xTicks, yTicks, dots = true, lineFor = () => true, yLog = false }) {
+  const W = 480, H = 280, L = 66, R = 76, T = 10, B = 40;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" }, card);
+  const xs = series.flatMap((s) => s.points.map((p) => p[0]));
+  const ys = series.flatMap((s) => s.points.map((p) => p[1])).filter((y) => y != null);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const y1 = yMax ?? Math.max(...ys) * 1.08;
+  const yf = (y) => (yLog ? Math.log(y / yMin) / Math.log(y1 / yMin) : (y - yMin) / (y1 - yMin));
+  const X = (x) => L + ((x - x0) / (x1 - x0 || 1)) * (W - L - R), Y = (y) => H - B - yf(y) * (H - T - B);
+  for (const t of yTicks) {
+    el("line", { x1: L, x2: W - R, y1: Y(t), y2: Y(t), stroke: css("--grid"), "stroke-width": 1 }, svg);
+    el("text", { x: L - 8, y: Y(t) + 4, "text-anchor": "end", "font-size": 11, fill: css("--muted") }, svg).textContent = yFmt(t);
+  }
+  el("line", { x1: L, x2: W - R, y1: H - B, y2: H - B, stroke: css("--axis"), "stroke-width": 1 }, svg);
+  for (const t of xTicks) el("text", { x: X(t), y: H - B + 16, "text-anchor": "middle", "font-size": 11, fill: css("--muted") }, svg).textContent = xFmt(t);
+  el("text", { x: (L + W - R) / 2, y: H - 4, "text-anchor": "middle", "font-size": 12, fill: css("--text-2") }, svg).textContent = xLabel;
+  el("text", { x: 12, y: (T + H - B) / 2, "text-anchor": "middle", "font-size": 12, fill: css("--text-2"), transform: `rotate(-90 12 ${(T + H - B) / 2})` }, svg).textContent = yLabel;
+  const endLabels = [];
+  for (const s of series) {
+    const pts = s.points.filter((p) => p[1] != null);
+    if (lineFor(s) && pts.length > 1)
+      el("path", { d: pts.map((p, i) => `${i ? "L" : "M"}${X(p[0])},${Y(p[1])}`).join(""), fill: "none", stroke: s.color, "stroke-width": s.width || 2, "stroke-linejoin": "round" }, svg);
+    if (dots || !lineFor(s)) for (const p of pts) el("circle", { cx: X(p[0]), cy: Y(p[1]), r: 4, fill: s.color, stroke: css("--surface"), "stroke-width": 2 }, svg);
+    const last = pts[pts.length - 1];
+    if (last && series.length <= 4 && s.label !== false) endLabels.push({ x: X(last[0]) + 8, y: Y(last[1]) + 4, name: s.name });
+  }
+  // Direct end labels, nudged apart so close lines don't print on top of each other.
+  endLabels.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < endLabels.length; i++) endLabels[i].y = Math.max(endLabels[i].y, endLabels[i - 1].y + 13);
+  // If the stack runs past the bottom of the plot, slide it back up so it stays clear of the x-axis labels.
+  const overflow = endLabels.length ? endLabels[endLabels.length - 1].y - (H - B - 2) : 0;
+  if (overflow > 0) endLabels.forEach((l) => (l.y -= overflow));
+  for (const l of endLabels) el("text", { x: l.x, y: l.y, "font-size": 11, fill: css("--text-2") }, svg).textContent = l.name;
+  // Crosshair + tooltip on the nearest x.
+  const cross = el("line", { y1: T, y2: H - B, stroke: css("--axis"), "stroke-width": 1, visibility: "hidden" }, svg);
+  const hit = el("rect", { x: L, y: T, width: W - L - R, height: H - T - B, fill: "transparent" }, svg);
+  const allX = [...new Set(xs)].sort((a, b) => a - b);
+  hit.addEventListener("mousemove", (ev) => {
+    const r = svg.getBoundingClientRect(), px = ((ev.clientX - r.left) / r.width) * W;
+    const xv = allX.reduce((b, x) => (Math.abs(X(x) - px) < Math.abs(X(b) - px) ? x : b), allX[0]);
+    cross.setAttribute("x1", X(xv)); cross.setAttribute("x2", X(xv)); cross.setAttribute("visibility", "visible");
+    const lines = series.map((s) => { const p = s.points.find((q) => q[0] === xv); return p && p[1] != null ? `<div><span class="k" style="background:${s.color}"></span>${s.name}: <b>${yFmt(p[1])}</b></div>` : ""; }).join("");
+    showTip(`<div><b>${xFmt(xv)}</b></div>${lines}`, ev);
+  });
+  hit.addEventListener("mouseleave", () => { cross.setAttribute("visibility", "hidden"); hideTip(); });
+  return svg;
+}
+
+// Each model keeps one color everywhere.
+// Four models can't each get their own color (no fourth color stays distinguishable from
+// the other three, checked with the palette validator), so charts comparing all four
+// highlight the model picked at the top of the page and grey out the rest, every line
+// labelled at its end.
+const MODELS = ["A", "B", "C", "D"];
+const MODEL_LABEL = { A: "A · tuck-and-turn", B: "B · two-cylinder", C: "C · jointed legs", D: "D · flexible spine" };
+const pickedModel = () => $("f-model").value;
+const modelChangeHandlers = [];
+$("f-model").innerHTML = MODELS.map((m) => `<option value="${m}"${m === "B" ? " selected" : ""}>${MODEL_LABEL[m]}</option>`).join("");
+$("f-model").addEventListener("change", () => modelChangeHandlers.forEach((f) => f()));
+
+// Series for a chart comparing models: the picked one in the accent color, the rest grey.
+function emphasisSeries(models, nameOf, pointsOf) {
+  return models.map((m) => ({ name: nameOf(m), points: pointsOf(m), model: m,
+    color: m === pickedModel() ? css("--s1") : css("--muted"), width: m === pickedModel() ? 3 : 1.5 }))
+    .sort((a, b) => (a.model === pickedModel()) - (b.model === pickedModel())); // picked drawn last, on top
+}
+const emphasisLegend = (card) => legend(card, [[`Model ${pickedModel()} (picked above)`, css("--s1")], ["Other models", css("--muted")]]);
+
+// Evenly spaced "nice" ticks from 0 to just above top.
+function niceTicks(top) {
+  const raw = top / 5, mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((s) => s >= raw);
+  return Array.from({ length: Math.ceil(top / step) + 1 }, (_, i) => +(i * step).toFixed(6));
+}
+
+// ---------- tiles ----------
+(function tiles() {
+  const t = [];
+  if (LAB.validation) t.push([`${LAB.validation.maxErr.toFixed(4)}°`, "largest gap between engine and exact theory (21 cases)"]);
+  if (LAB.survival) t.push([LAB.survival.rows.length.toLocaleString(), `simulated drops in the survival map (${Math.round(LAB.survival.seconds)} s on ${navigator.hardwareConcurrency || "several"} cores)`]);
+  if (LAB.optimizer) {
+    const g = LAB.optimizer.results.filter((r) => r.optMinH).map((r) => 1 - r.optMinH / r.reflexMinH);
+    t.push([`${Math.round(100 * Math.max(...g))}%`, "lower drop the optimized cat survives, vs the reflex (best case)"]);
+  }
+  if (LAB.highrise) {
+    const top = Math.max(...LAB.highrise.rows.filter((r) => r.variant === "spread").map((r) => r.v));
+    t.push([`${top.toFixed(0)} m/s`, `top landing speed from 30 floors with air (${(top * 3.6).toFixed(0)} km/h)`]);
+  }
+  $("tiles").innerHTML = t.map(([b, l]) => `<div class="tile"><div class="big">${b}</div><div class="lbl">${l}</div></div>`).join("");
+})();
+
+// ---------- 1. validation ----------
+(function validation() {
+  const card = $("val-card");
+  if (!LAB.validation) return (card.innerHTML = `<p class="missing">Run lab/validation.html to generate this.</p>`);
+  cardHead(card, "Roll per lap of the bend sweep: theory (lines) vs engine (dots)", `Three body shapes · largest difference ${LAB.validation.maxErr.toExponential(1)}°`);
+  const shapes = [...new Set(LAB.validation.rows.map((r) => r.shape))];
+  const colors = [css("--s1"), css("--s2"), css("--s3")];
+  legend(card, shapes.map((s, i) => [s, colors[i]]));
+  const series = [];
+  shapes.forEach((sh, i) => {
+    const rows = LAB.validation.rows.filter((r) => r.shape === sh);
+    series.push({ name: sh, color: colors[i], points: rows.map((r) => [r.bend, -r.analytic]), label: false });
+    series.push({ name: `${sh} (engine)`, color: colors[i], points: rows.map((r) => [r.bend, -r.engine]), label: false, dotsOnly: true });
+  });
+  lineChart(card, { series, xLabel: "Spine bend (°)", yLabel: "Roll per lap (°)", xTicks: [20, 60, 100, 140], yTicks: [0, 90, 180, 270, 360],
+    xFmt: (x) => `${x}°`, yFmt: (y) => `${(+y).toFixed(0)}°`, yMax: 360, dots: false, lineFor: (s) => !s.dotsOnly });
+  card.appendChild(tableView(["Shape", "Bend", "Theory", "Engine", "Difference"],
+    LAB.validation.rows.map((r) => [r.shape, `${r.bend}°`, `${(-r.analytic).toFixed(3)}°`, `${(-r.engine).toFixed(3)}°`, (r.engine - r.analytic).toExponential(1)])));
+})();
+
+// ---------- 2. survival ----------
+(function survival() {
+  if (!LAB.survival) return ($("heat-card").innerHTML = `<p class="missing">Run lab/survival.html to generate this.</p>`);
+  const S = LAB.survival, F = Object.fromEntries(S.fields.map((f, i) => [f, i]));
+  const g = S.grid;
+  // Index rows by model|delay|pitch|height once; the grid has ~160k rows.
+  const byCase = new Map();
+  for (const r of S.rows) {
+    const k = `${r[F.model]}|${r[F.delay]}|${r[F.pitch]}|${r[F.height]}`;
+    if (!byCase.has(k)) byCase.set(k, []);
+    byCase.get(k).push(r);
+  }
+  const cell = (m, d, p, h) => byCase.get(`${m}|${d}|${p}|${h}`) || [];
+  const f = $("surv-filters");
+  const sel = (id, label, opts, def) =>
+    `<label>${label} <select id="${id}">${opts.map((o) => `<option value="${o[0]}"${o[0] == def ? " selected" : ""}>${o[1]}</option>`).join("")}</select></label>`;
+  f.innerHTML = sel("f-delay", "Reaction delay", g.delay.map((d) => [d, `${d} ms`]), 60) +
+    sel("f-pitch", "Starting pitch", g.pitch.map((p) => [p, `${p}°`]), 0);
+
+  const BINS = [[20, "Perfect (feet < 20°)", "--o1"], [45, "On its feet (< 45°)", "--o2"], [100, "Clumsy (< 100°)", "--o3"], [999, "On its back", "--o4"]];
+  const bin = (w) => BINS.findIndex((b) => w < b[0]);
+
+  function drawHeat() {
+    const m = $("f-model").value, d = +$("f-delay").value, p = +$("f-pitch").value;
+    const card = $("heat-card");
+    cardHead(card, `How model ${m} lands`, `Reaction delay ${d} ms, starting pitch ${p}°. Hover a cell for details.`);
+    legend(card, BINS.map((b) => [b[1], css(b[2])]), true);
+    const rolls = g.roll, hs = g.height.slice().reverse();
+    const W = 480, H = 300, L = 52, R = 8, T = 6, B = 40;
+    const cw = (W - L - R) / rolls.length, ch = (H - T - B) / hs.length;
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}` }, card);
+    const look = new Map();
+    for (const h of g.height) for (const r of cell(m, d, p, h)) look.set(`${r[F.roll]}|${h}`, r);
+    hs.forEach((h, j) => {
+      rolls.forEach((ro, i) => {
+        const r = look.get(`${ro}|${h}`);
+        if (!r) return;
+        const c = el("rect", { x: L + i * cw + 1, y: T + j * ch + 1, width: cw - 2, height: ch - 2, rx: 2, fill: css(BINS[bin(r[F.worst])][2]) }, svg);
+        c.addEventListener("mousemove", (ev) => showTip(`<b>Roll ${ro}°, ${h} m</b><div>Worst feet angle ${fmt(r[F.worst], 0)}°</div><div>Impact ${fmt(r[F.impact], 0)}× body weight</div><div>${r[F.rightedAt] != null ? `Upright after ${fmt(r[F.rightedAt])} s` : "Never fully upright"}</div>`, ev));
+        c.addEventListener("mouseleave", hideTip);
+      });
+      el("text", { x: L - 6, y: T + j * ch + ch / 2 + 4, "text-anchor": "end", "font-size": 10, fill: css("--muted") }, svg).textContent = `${h} m`;
+    });
+    rolls.forEach((ro, i) => { if (ro % 30 === 0) el("text", { x: L + i * cw + cw / 2, y: H - B + 14, "text-anchor": "middle", "font-size": 10, fill: css("--muted") }, svg).textContent = `${ro}°`; });
+    el("text", { x: (L + W) / 2, y: H - 6, "text-anchor": "middle", "font-size": 12, fill: css("--text-2") }, svg).textContent = "Starting roll (0° upright, 180° upside down)";
+    const rows = [];
+    for (const h of g.height) rows.push([`${h} m`, ...rolls.filter((r) => r % 30 === 0).map((ro) => fmt(look.get(`${ro}|${h}`)?.[F.worst], 0) + "°")]);
+    card.appendChild(tableView(["Height", ...rolls.filter((r) => r % 30 === 0).map((r) => `roll ${r}°`)], rows));
+  }
+
+  // Lowest height from which the cat lands on its feet from ANY roll (and every height above), per delay.
+  function minSafe(model, delay, pitch) {
+    const hs = g.height;
+    const safe = hs.map((h) => cell(model, delay, pitch, h).every((r) => r[F.worst] < 45));
+    return hs.find((h, i) => safe.slice(i).every(Boolean));
+  }
+  function drawMinH() {
+    const p = +$("f-pitch").value, card = $("minh-card");
+    cardHead(card, "Lowest safe drop vs reflex speed", `Lands on its feet from every starting roll · starting pitch ${p}°`);
+    const series = emphasisSeries(MODELS.filter((m) => g.model.includes(m)), (m) => `Model ${m}`,
+      (m) => g.delay.map((d) => [d, minSafe(m, d, p) ?? null]));
+    emphasisLegend(card);
+    // Log scale: model A needs ~20× the height of the others, and every line stays readable.
+    const maxH = Math.max(...g.height);
+    lineChart(card, { series, xLabel: "Reaction delay (ms)", yLabel: "Lowest safe height (m, log scale)", xTicks: g.delay.filter((d) => d % 40 === 0),
+      yLog: true, yMin: 0.25, yMax: 32, yTicks: [0.25, 0.5, 1, 2, 4, 8, 16, 32],
+      xFmt: (x) => `${x} ms`, yFmt: (y) => `${y < 1 ? (+y).toFixed(2) : y} m` });
+    const bySeries = [...series].sort((a, b) => a.model.localeCompare(b.model));
+    card.appendChild(tableView(["Reaction delay", ...bySeries.map((s) => s.name)],
+      g.delay.map((d, i) => [`${d} ms`, ...bySeries.map((s) => (s.points[i][1] ? `${s.points[i][1]} m` : `above ${maxH} m`))])));
+  }
+  const redraw = () => { drawHeat(); drawMinH(); };
+  f.addEventListener("change", redraw);
+  modelChangeHandlers.push(redraw);
+  redraw();
+})();
+
+// ---------- 3. optimizer ----------
+(function optimizer() {
+  const row = $("opt-row");
+  if (!LAB.optimizer) return (row.innerHTML = `<div class="card missing">Run lab/optimizer.html to generate this.</div>`);
+  const res = LAB.optimizer.results;
+  // The improved reflex (legs tucked while > 45° of roll to go) comes from lab/reflex-experiment.html.
+  const exp = LAB.reflex_experiment ? LAB.reflex_experiment.rows : [];
+  const improved = (m, roll) => (exp.find((r) => r.model === m && r.variant === "tuck45" && r.roll === roll) || {}).minPerfectHeight ?? null;
+  for (const m of ["B", "C", "D", "A"]) {
+    const rs = res.filter((r) => r.model === m);
+    if (!rs.length) continue;
+    const twistOnly = m === "A" || m === "D"; // one reflex only: the tuck variants steer a single-joint spine
+    const card = document.createElement("div");
+    card.className = "card";
+    row.appendChild(card);
+    cardHead(card, `Model ${m}: lowest perfect landing`, m === "A"
+      ? "Its tuck-and-turn reflex vs the optimizer (a cat that can't bend its spine)"
+      : m === "D" ? "Its reflex vs the optimizer, which controls the front and back of the spine separately"
+      : "Original reflex, the reflex after learning from the optimizer, and the optimizer itself");
+    const series = [
+      { name: twistOnly ? "Reflex" : "Original reflex", color: css("--s1"), points: rs.map((r) => [r.roll, r.reflexMinH]) },
+      { name: "Improved reflex", color: css("--s3"), points: rs.map((r) => [r.roll, twistOnly ? null : improved(m, r.roll)]) },
+      { name: "Optimized", color: css("--s2"), points: rs.map((r) => [r.roll, r.optMinH]) },
+    ].filter((s) => s.points.some((p) => p[1] != null));
+    legend(card, series.map((s) => [s.name, s.color]));
+    const top = Math.max(...series.flatMap((s) => s.points.map((p) => p[1] ?? 0)));
+    const yTicks = niceTicks(top * 1.05);
+    lineChart(card, { series, xLabel: "Starting roll (°)", yLabel: "Lowest perfect height (m)", xTicks: rs.map((r) => r.roll), yTicks, yMax: yTicks[yTicks.length - 1],
+      xFmt: (x) => `${x}°`, yFmt: (y) => `${(+y).toFixed(top > 4 ? 0 : 2)} m` });
+    card.appendChild(tableView(["Start roll", twistOnly ? "Reflex" : "Original reflex", ...(twistOnly ? [] : ["Improved reflex"]), "Optimized", "Optimized vs reflex", "Drops simulated"],
+      rs.map((r) => [`${r.roll}°`, `${fmt(r.reflexMinH)} m`, ...(twistOnly ? [] : [`${fmt(improved(m, r.roll))} m`]), `${fmt(r.optMinH)} m`,
+        r.optMinH ? `${Math.round(100 * (1 - r.optMinH / r.reflexMinH))}% lower` : "–", r.evals.toLocaleString()])));
+  }
+  const total = res.reduce((a, r) => a + r.evals, 0);
+  $("opt-notes").innerHTML = `
+    <h3>What the optimizer discovered</h3>
+    <p>Its best sequences combine both textbook strategies at once. For an upside-down cat it tucks all four legs
+    almost immediately, bends the spine fully and sweeps the bend direction round at top speed (bend and twist),
+    while also twisting the spine about 90–110° (tuck and turn); then it untwists and spreads its legs just before
+    touchdown. That combination matches what high-speed footage of real cats shows. Model B finishes righting in
+    about 0.26 s this way, against about 0.37 s for the original reflex.</p>
+    <p>Teaching the reflex part of that trick (keep the legs tucked while more than 45° of roll is still needed) closed
+    most of the gap: the "improved reflex" line. The precisely timed spine twist could not be copied by a simple rule
+    (a fixed twist made things worse), so the optimizer still wins, especially for model C. The game's reflex now uses
+    the improved version, and Watch the cat mode can replay the optimizer's own moves.</p>
+    <p><b>Model A, the cat that can't bend</b>, gains the most from the optimizer: its computer-found moves land
+    perfectly from about half the height its tuck-and-turn reflex needs (upside down: about 6 m instead of about 12 m).
+    Its sequences swing the spine through the whole ±180° twist range instead of stopping at straight, and move the
+    legs while still twisting. Swinging through the full range alone only speeds the reflex up by about 10%,
+    so most of the gain comes from tightly overlapped timing. Even optimized, a cat that can only twist needs roughly
+    ten times the height of one that can bend: the bend in the spine is what makes the righting reflex fast.</p>
+    <p><b>Model D, the flexible spine</b>, controls the front and back of the spine separately. Its reflex treats
+    the spine as one joint, so both halves turn over together. The optimizer found something closer to a real cat:
+    it tucks the front legs for almost the whole turn while the back legs spread out, swings the flexible front joint
+    through its full twist range while the stiffer back joint barely moves, and the front half gets its feet under it
+    first: upside down, the front feet are within 45° of the ground about 36 ms before the back feet. That front-first
+    move lands perfectly from about 0.48 m, against 0.74 m for D's reflex. A 2026 study of falling cats describes the
+    same thing: the flexible front spine lets the head and front legs come round first while the stiffer lower back
+    anchors the turn.</p>
+    <p class="note">${total.toLocaleString()} simulated drops in ${LAB.optimizer.minutes.toFixed(1)} minutes
+    (${LAB.optimizer.settings ? `${LAB.optimizer.settings.KNOTS} timing points per control, population ${LAB.optimizer.settings.POP}, up to ${LAB.optimizer.settings.MAX_GEN} generations` : ""}).</p>`;
+})();
+
+// ---------- 4. high-rise ----------
+(function highrise() {
+  if (!LAB.highrise) return ($("hr-speed").innerHTML = `<p class="missing">Run lab/highrise.html to generate this.</p>`);
+  const rows = LAB.highrise.rows;
+  const V = [["spread", css("--s1"), "Legs spread (reflex)"], ["tucked", css("--s2"), "Legs tucked"], ["vacuum", css("--s3"), "No air"]];
+  const floorsTicks = [0, 5, 10, 15, 20, 25, 30];
+  {
+    const card = $("hr-speed");
+    cardHead(card, "Landing speed (model C)", "Air drag caps the speed; with no air it keeps climbing");
+    const series = V.map(([v, color, name]) => ({ name, color, points: rows.filter((r) => r.model === "C" && r.variant === v).map((r) => [r.floors, r.v]) }));
+    legend(card, series.map((s) => [s.name, s.color]));
+    lineChart(card, { series, xLabel: "Height (floors, 3 m each)", yLabel: "Speed at touchdown (m/s)", xTicks: floorsTicks, yTicks: [0, 10, 20, 30, 40], yMax: 45,
+      xFmt: (x) => `${(+x).toFixed(x < 1 ? 1 : 0)}`, yFmt: (y) => `${(+y).toFixed(0)} m/s`, dots: false });
+    card.appendChild(tableView(["Floors", "Height", ...V.map((v) => v[2])], rows.filter((r) => r.model === "C" && r.variant === "spread").map((r) =>
+      [fmt(r.floors, 1), `${r.height} m`, ...V.map(([v]) => `${fmt(rows.find((q) => q.model === "C" && q.variant === v && q.height === r.height).v, 1)} m/s`)])));
+  }
+  function drawForce() {
+    const card = $("hr-force");
+    cardHead(card, "Impact force: rigid vs jointed legs", "Peak load in body weights, upside-down start, with air. Models A and B have rigid legs, C and D jointed ones. Model A only lands on its feet from about 5 floors up; below that it hits on its side or back.");
+    const names = { A: "A (can't bend)", B: "B (rigid legs)", C: "C (knees fold)", D: "D (flexible spine)" };
+    const ms = MODELS.filter((m) => rows.some((r) => r.model === m));
+    const series = emphasisSeries(ms, (m) => names[m], (m) => rows.filter((r) => r.model === m && r.variant === "spread").map((r) => [r.floors, r.impact]));
+    emphasisLegend(card);
+    const top = Math.max(...series.flatMap((s) => s.points.map((p) => p[1])));
+    const step = top > 1500 ? 500 : top > 600 ? 250 : 100;
+    lineChart(card, { series, xLabel: "Height (floors, 3 m each)", yLabel: "Impact (× body weight)", xTicks: floorsTicks,
+      yTicks: Array.from({ length: Math.ceil(top / step) + 1 }, (_, i) => i * step), yMax: Math.ceil(top / step) * step,
+      xFmt: (x) => `${(+x).toFixed(x < 1 ? 1 : 0)}`, yFmt: (y) => `${(+y).toFixed(0)}×`, dots: false });
+    card.appendChild(tableView(["Floors", ...ms.map((m) => `Model ${m}`)], rows.filter((r) => r.model === "B" && r.variant === "spread").map((r) =>
+      [fmt(r.floors, 1), ...ms.map((m) => { const q = rows.find((x) => x.model === m && x.variant === "spread" && x.height === r.height);
+        return q ? `${fmt(q.impact, 0)}×${q.worst >= 45 ? " (not on feet)" : ""}` : "–"; })])));
+  }
+  drawForce();
+  modelChangeHandlers.push(drawForce);
+  const D = (v, h) => rows.find((r) => r.model === "C" && r.variant === v && r.height === h);
+  $("hr-notes").innerHTML = `
+    <h3>What this says about "high-rise syndrome"</h3>
+    <p>A famous 1987 veterinary study (Whitney &amp; Mehlhaff, 132 cats brought to a New York clinic) is often summarised as
+    "cats falling from above about 7 floors were hurt less than those falling from lower". The usual explanation is
+    terminal velocity: once the cat stops speeding up it relaxes and spreads out like a parachute.</p>
+    <p>In this model, air drag does cap the speed, but slowly: with legs spread the cat is still speeding up at 7 floors
+    (${D("spread", 21).v.toFixed(1)} m/s at 21 m) and only reaches ${D("spread", 90).v.toFixed(1)} m/s at 30 floors. Its top speed
+    is about 27 m/s, and getting within 5% of that takes roughly 90 m. The impact force therefore keeps rising with
+    height (it just rises more slowly up high), so <b>speed alone does not reproduce fewer injuries from higher up</b>.
+    Two explanations people propose fit that gap: the relaxed belly-flop spreads the impact over the whole body
+    (not modelled here, since our landing uses only the legs), and survivorship bias (cats that died from high falls were
+    never brought to a vet, so they are missing from the study).</p>
+    <p>What the model does show clearly: spreading the legs matters. From 30 floors it lands at ${D("spread", 90).v.toFixed(1)} m/s
+    with legs spread, ${D("tucked", 90).v.toFixed(1)} m/s with legs tucked, and ${D("vacuum", 90).v.toFixed(1)} m/s with no air at all,
+    and jointed legs cut the impact about ${Math.round(rows.find((r) => r.model === "B" && r.variant === "spread" && r.height === 9).impact / D("spread", 9).impact)}-fold compared
+    with rigid ones. Sources: <a href="https://pubmed.ncbi.nlm.nih.gov/3692980/">Whitney &amp; Mehlhaff 1987 (PubMed)</a>,
+    <a href="https://en.wikipedia.org/wiki/High-rise_syndrome">High-rise syndrome (Wikipedia)</a>.</p>`;
+})();
+
+// ---------- 5. zero gravity ----------
+(function zeroGravity() {
+  if (!LAB.zerog) return ($("zg-upright").innerHTML = `<p class="missing">Run lab/zerog.html to generate this.</p>`);
+  const Z = LAB.zerog, conds = Z.conditions;
+  const short = { floor: "Floor", mem4: "4°/√s", mem8: "8°/√s", mem15: "15°/√s", mem30: "30°/√s", none: "None" };
+  const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const avg = (m, c, k) => mean(Z.rows.filter((r) => r.model === m && r.cond === c).map((r) => r[k]));
+  const xTicks = conds.map((_, i) => i), xFmt = (i) => short[conds[i].key] || conds[i].key;
+  const xLabel = "Sense of down: sees floor → memory fading faster → none";
+  function draw() {
+    {
+      const card = $("zg-upright");
+      cardHead(card, "Time with feet toward the floor", `Average over ${Z.trials} random starting tilts, ${Z.spell} s each`);
+      const series = emphasisSeries(Z.models, (m) => `Model ${m}`, (m) => conds.map((c, i) => [i, 100 * avg(m, c.key, "fracUpright")]));
+      emphasisLegend(card);
+      lineChart(card, { series, xLabel, yLabel: "Feet toward floor (% of time)", xTicks, xFmt, yTicks: [0, 25, 50, 75, 100], yMax: 100,
+        yFmt: (y) => `${(+y).toFixed(0)}%` });
+      card.appendChild(tableView(["Sense of down", ...Z.models.map((m) => `Model ${m}`)],
+        conds.map((c) => [c.label, ...Z.models.map((m) => `${(100 * avg(m, c.key, "fracUpright")).toFixed(0)}%`)])));
+    }
+    {
+      const card = $("zg-effort");
+      cardHead(card, "How hard it works", "Spine movement over the 20 s, in full turns' worth of joint motion");
+      const series = emphasisSeries(Z.models, (m) => `Model ${m}`, (m) => conds.map((c, i) => [i, avg(m, c.key, "effortLaps")]));
+      emphasisLegend(card);
+      const top = Math.max(...series.flatMap((s) => s.points.map((p) => p[1])));
+      const yTicks = niceTicks(top * 1.05);
+      lineChart(card, { series, xLabel, yLabel: "Spine movement (turns)", xTicks, xFmt, yTicks, yMax: yTicks[yTicks.length - 1],
+        yFmt: (y) => `${(+y).toFixed(0)}` });
+      card.appendChild(tableView(["Sense of down", ...Z.models.map((m) => `Model ${m}`)],
+        conds.map((c) => [c.label, ...Z.models.map((m) => avg(m, c.key, "effortLaps").toFixed(1))])));
+    }
+  }
+  draw();
+  modelChangeHandlers.push(draw);
+  const pct = (m, c) => Math.round(100 * avg(m, c, "fracUpright"));
+  // "a–b%", or just "a%" when every model in the list scored the same.
+  const span = (ms, c) => { const v = ms.map((m) => pct(m, c)); const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? `${lo}` : `${lo}–${hi}`; };
+  $("zg-notes").innerHTML = `
+    <h3>What it shows</h3>
+    <p>The righting reflex itself still works in zero g: when a cat can see the floor, models B, C and D get their feet
+    toward it within a fraction of a second and keep them there (${span(["B", "C", "D"], "floor")}% of the time; model A, which can
+    only twist, ${pct("A", "floor")}%). What fails is knowing where to turn to. With no sense of down the same cats spend only
+    ${span(Z.models, "none")}% of the time feet-down, while moving their spines
+    many times more than when they can see the floor: they keep righting themselves perfectly toward the wrong place, which
+    is what the weightless cats in the old films look like. A memory of down helps only while it is fresh: the faster it fades,
+    the less of the time the cat is the right way up.</p>
+    <p>One surprise: with a fading memory, clumsy model A (${pct("A", "mem8")}% at 8°/√s) does a little better than the quick cats
+    (${span(["B", "C", "D"], "mem8")}%). It turns over so slowly that it doesn't chase every wobble of its drifting belief, so it lags behind
+    near the true "up" it started from. Being quick only helps when you know which way to go.</p>
+    <p class="note">${Z.rows.length.toLocaleString()} weightless spells (${Z.trials} starts × ${conds.length} conditions × ${Z.models.length} models), ${Math.round(Z.seconds)} s on the lab's worker threads.</p>`;
+})();
+</script>
+</body>
+</html>

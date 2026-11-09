@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Falling Cat</title>
+<!-- Installable app (PWA): manifest, icons and theme colour for the phone's app shell. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#12151c">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <main id="stage">
+    <div id="view"></div>
+
+    <div id="hud">
+      <div class="hud-row"><span id="hud-mode">Challenge · Level 1</span></div>
+      <div class="hud-label" id="hud-time-label">Time to impact</div>
+      <div class="bar"><div id="time-bar"></div></div>
+      <div class="hud-row small"><span id="hud-time">–</span><span id="hud-height">–</span></div>
+      <div class="hud-row small"><span>Speed</span><b id="hud-speed">0</b></div>
+      <canvas id="gauge" width="160" height="160" title="Looking along the cat's spine: where each pair of feet points"></canvas>
+      <div class="hud-row small"><span class="tag front">Front feet <b id="ang-front">–</b></span><span class="tag back">Back feet <b id="ang-back">–</b></span></div>
+      <div class="hud-row small" title="Total angular momentum of the cat, computed independently from the motion of every body part. It should stay at zero.">
+        <span>Angular momentum |L|</span><b id="hud-L">0</b>
+      </div>
+    </div>
+
+    <div id="banner" class="hidden">
+      <div id="banner-title"></div>
+      <div id="banner-text"></div>
+      <canvas id="chart" width="560" height="200" title="Flight log: how far each pair of feet was from pointing down, and the spine bend, over the fall"></canvas>
+      <div class="banner-buttons">
+        <button id="banner-next" class="primary">Next level</button>
+        <button id="banner-retry">Try again</button>
+      </div>
+    </div>
+
+    <div id="coach" class="hidden"></div>
+    <!-- Watch mode / demos: what the cat is doing right now and why, plus a timeline of its moves. -->
+    <div id="narrator" class="hidden" aria-live="polite">
+      <div class="nar-head"><span id="nar-title"></span><a id="nar-more" href="physics.html" target="_blank" title="Open the physics page at this topic">Why? ↗</a></div>
+      <div id="nar-body"></div>
+      <div id="nar-live"></div>
+      <ol id="nar-timeline"></ol>
+      <div class="nar-tip">Too fast to read? Slow down or pause (P) with the speed bar.</div>
+    </div>
+    <!-- Playback speed over the scene: pause, a slider (log scale) and quick presets. -->
+    <div id="speedbar">
+      <button id="pause" title="Pause / resume (P)" aria-label="Pause">&#10074;&#10074;</button>
+      <input type="range" id="speed-bar" min="0" max="1" step="0.001" aria-label="Playback speed">
+      <span id="speed-bar-out">0.15×</span>
+      <span class="speed-presets">
+        <button data-speed="1">1×</button><button data-speed="0.5">½</button><button data-speed="0.25">¼</button><button data-speed="0.1">1/10</button><button data-speed="0.05">1/20</button>
+      </span>
+    </div>
+    <button id="stage-drop" class="primary" hidden>Drop</button>
+    <div id="hint">Drag to orbit · scroll to zoom</div>
+    <div id="views">
+      <button data-view="front">Front</button>
+      <button data-view="side">Side</button>
+      <button data-view="top">Below</button>
+    </div>
+  </main>
+
+  <aside id="panel">
+    <div class="panel-head">
+      <h1>Falling Cat</h1>
+      <button id="open-menu" class="small-btn" title="Back to the main menu">Menu <kbd>Esc</kbd></button>
+    </div>
+    <p class="tagline">You are the cat. Nothing to push against. Land on your feet.
+      <a href="physics.html" class="results-link">The physics behind it →</a>
+      <a href="results.html" class="results-link">See the simulation results →</a></p>
+
+    <section>
+      <label class="field">Model
+        <select id="model-select"></select>
+      </label>
+      <p id="model-desc" class="desc"></p>
+    </section>
+
+    <section>
+      <div class="seg" id="mode-seg">
+        <button data-mode="challenge" class="on">Challenge</button>
+        <button data-mode="free">Free drop</button>
+        <button data-mode="float">Zero-g practice</button>
+        <button data-mode="watch">Watch the cat</button>
+      </div>
+      <p id="mode-desc" class="desc"></p>
+      <div id="setup">
+        <div id="watch-setup">
+          <label class="field">Gravity
+            <select id="gravity">
+              <option value="earth" selected>Earth: a normal drop</option>
+              <option value="zerog">Zero g: floating in a parabolic-flight cabin</option>
+            </select>
+          </label>
+          <div id="zerog-setup">
+            <label class="field" title="In free fall a cat's balance organs feel no gravity, so its sense of down must come from somewhere else.">
+              Cat's sense of down
+              <select id="cue">
+                <option value="floor" selected>Sees the cabin floor</option>
+                <option value="memory">Remembers where down was (fades)</option>
+                <option value="none">No sense of down</option>
+              </select>
+            </label>
+            <label class="field" id="drift-field">Memory fades by <output id="drift-out"></output>
+              <input type="range" id="drift" min="2" max="30" step="1" value="8">
+            </label>
+            <p class="desc">About 20 s of weightlessness, like one parabola. The cat steers by where it <i>thinks</i> down is.</p>
+          </div>
+          <label class="field">Starting roll <output id="roll-out"></output>
+            <input type="range" id="roll" min="0" max="360" step="5" value="180">
+          </label>
+          <label class="field">Starting pitch <output id="pitch-out"></output>
+            <input type="range" id="pitch" min="-45" max="45" step="5" value="0">
+          </label>
+          <label class="field" title="Real cats need roughly 50–100 ms to sense they are falling before the righting reflex kicks in.">
+            Reaction delay <output id="delay-out"></output>
+            <input type="range" id="delay" min="0" max="250" step="10" value="60">
+          </label>
+          <label class="field">Cat's strategy
+            <select id="strategy">
+              <option value="reflex" selected>Reflex (rule-based)</option>
+              <option value="optimized">Optimized (found by the computer)</option>
+            </select>
+          </label>
+          <p id="strategy-note" class="desc"></p>
+          <label class="check"><input type="checkbox" id="explain-on" checked> Explain what the cat is doing</label>
+          <button id="randomize" class="small-btn">Randomize start</button>
+        </div>
+        <label class="field" id="height-field">Drop height <output id="height-out"></output>
+          <input type="range" id="height" min="0" max="1" step="1" value="0">
+        </label>
+        <label class="check" title="Air drag slows the fall; spread legs act like a parachute (top speed about 27 m/s, 60 mph).">
+          <input type="checkbox" id="air-on" checked> Air resistance</label>
+        <label class="field">Slow motion <output id="speed-out"></output>
+          <input type="range" id="speed" min="0.02" max="1" step="0.01" value="0.15">
+        </label>
+        <label class="field" id="start-field">Start position
+          <select id="start">
+            <option value="upside">Upside down</option>
+            <option value="random" selected>Random tumble</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="coach-on" checked> Coach hints on screen</label>
+      </div>
+      <div class="buttons">
+        <button id="drop" class="primary">Drop <kbd>Space</kbd></button>
+        <button id="reset">Reset <kbd>R</kbd></button>
+        <button id="demo" title="Let the computer play the cat once">Show me</button>
+      </div>
+    </section>
+
+    <section>
+      <h2 id="body-title">Your body</h2>
+      <p id="body-note" class="desc"></p>
+      <div id="controls"></div>
+      <button id="neutral" class="small-btn">Straighten out <kbd>N</kbd></button>
+    </section>
+
+    <section>
+      <details>
+        <summary>How to play</summary>
+        <p>The cat starts upside down and has nothing to push against, so its total
+        angular momentum is <b>zero</b> the whole way down. You can only turn over by
+        changing your body's shape.</p>
+        <p><b>Bend and twist:</b> bend the spine (<kbd>W</kbd>), then hold <kbd>A</kbd> or
+        <kbd>D</kbd> to sweep the bend direction around in a circle. The body rolls the
+        <i>opposite</i> way to your sweep: watch the dial and the feet gauge (both are seen from
+        behind the cat). In model B, at full bend one lap rolls the cat about 150°; at half bend only about 40°
+        (the roll grows roughly with the square of the bend).
+        <b>Pro tip</b> (found by the optimizer): tuck all four legs (<kbd>Z</kbd> <kbd>C</kbd>) while you
+        sweep, then spread them once you're nearly upright.</p>
+        <p><b>Tuck and turn:</b> tuck the front legs (<kbd>Z</kbd>) and twist (<kbd>E</kbd>):
+        the light front half turns a lot, the heavy back half a little. Then spread the front
+        legs (<kbd>X</kbd>), tuck the back legs (<kbd>C</kbd>) and untwist (<kbd>Q</kbd>).</p>
+        <p><b>Nose up or down?</b> Once upright, pump to level out: tuck one pair of legs, bend
+        toward your belly (dial at "belly"), swap which legs are tucked, then straighten. Tucking
+        the front legs first tips the nose down; tucking the back legs first tips it up.</p>
+        <p>Land with your spine straight and legs spread for full marks. In models C and D, land with
+        straight knees: the more they can fold, the softer the landing.</p>
+        <p><b>Watch the cat:</b> here you're not the cat. Set its starting tilt, pitch and pose
+        and how fast its reflex kicks in, drop it, and see how it lands. The flight log after
+        landing shows how each pair of feet swung toward the ground.</p>
+      </details>
+      <details>
+        <summary>The physics</summary>
+        <p>The model is two rigid cylinders joined at the spine (Kane &amp; Scher, 1969), plus
+        four legs treated as point masses. Every instant the simulation solves the vector equation
+        <code><b><i>L</i></b> = Σ [ <b>I</b><sub>i</sub><b><i>ω</i></b><sub>i</sub> + m<sub>i</sub> <b><i>r</i></b><sub>i</sub> × <b><i>v</i></b><sub>i</sub> ] = <b>0</b></code>
+        for the rotation of the whole body given how you change its shape. Bold italic letters are vectors; <b>I</b><sub>i</sub> is each
+        part's 3×3 inertia <i>tensor</i> (it is a matrix, not a number, because a body is harder to spin about some axes than others).</p>
+        <p>Gravity pulls evenly on every part, so it can't turn the cat. It only sets how much
+        time you have. Bending and unbending, or twisting and untwisting, on their own get you
+        nowhere; a net turn needs a <i>loop</i> in shape space, like sweeping the bend
+        direction round, or twisting with different legs tucked on the way out and back.</p>
+        <p>The |<b><i>L</i></b>| readout (the magnitude of the angular momentum vector) recomputes it
+        independently from the motion of every part. It stays near zero (rounding error only).</p>
+        <p><a href="physics.html" class="results-link">Moment of inertia, angular momentum and every move explained →</a></p>
+      </details>
+    </section>
+  </aside>
+</div>
+
+<!-- Main menu: buttons laid over the full-screen scene, with the chosen cat turning in the middle. -->
+<div id="menu">
+  <div class="menu-top">
+    <h1 class="menu-title">Falling Cat</h1>
+    <p class="menu-sub">How does a cat land on its feet with nothing to push against?</p>
+  </div>
+  <div class="menu-bottom">
+    <div class="menu-row"><span class="menu-label">Cat</span><div id="menu-models" class="menu-row"></div></div>
+    <div id="menu-model-info" class="menu-info"></div>
+    <div class="menu-row"><span class="menu-label">Mode</span><div id="menu-modes" class="menu-row"></div></div>
+    <div class="menu-actions">
+      <button id="menu-start" class="primary">Start <kbd>Enter</kbd></button>
+      <button id="install-app" class="menu-pill" hidden title="Add Falling Cat to this device as an app">Install app</button>
+      <a href="physics.html" class="menu-pill">The physics</a>
+      <a href="results.html" class="menu-pill">Simulation results</a>
+    </div>
+  </div>
+  <div class="menu-caption" id="menu-caption"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="js/math3.js"></script>
+<script src="js/physics.js"></script>
+<script src="js/models/twoCylinder.js"></script>
+<script src="js/models/modelA.js"></script>
+<script src="js/models/modelB.js"></script>
+<script src="js/models/modelC.js"></script>
+<script src="js/models/modelD.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/pilots.js"></script>
+<script src="js/narrator.js"></script>
+<script src="lab/results/data.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+<script>
+// Installable app: register the offline service worker (needs http(s), not file://),
+// and show an "Install app" button when the browser offers installation.
+if ("serviceWorker" in navigator && location.protocol !== "file:")
+  navigator.serviceWorker.register("sw.js").catch((e) => console.warn("Service worker not registered:", e));
+let installPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  document.getElementById("install-app").hidden = false;
+});
+document.getElementById("install-app").addEventListener("click", async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  document.getElementById("install-app").hidden = true;
+});
+window.addEventListener("appinstalled", () => { document.getElementById("install-app").hidden = true; });
+</script>
+</body>
+</html>
