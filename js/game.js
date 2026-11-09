@@ -24,6 +24,9 @@
   const $ = (id) => document.getElementById(id);
   const renderer = new FC.Renderer($("view"));
   const controls = new FC.Controls($("controls"));
+  const touchpad = new FC.TouchPad($("touchpad"), controls); // thumb controls on touch screens
+  // Phones and tablets: no keyboard, so the thumb controls replace the keys.
+  const TOUCH = matchMedia("(hover: none), (pointer: coarse)").matches;
 
   const game = {
     model: null,
@@ -92,6 +95,7 @@
     // A Watch-mode starting pose belongs to the old model (other controls): never restore it on the new one.
     game.watchPose = null;
     controls.build(game.model);
+    touchpad.build(game.model);
     renderer.setModel(game.model);
     reset();
   }
@@ -565,7 +569,7 @@
     const go = TOUCH ? "tap Drop" : "press Space";
     if (show)
       coach.textContent = watch ? (zeroG() ? `Set the start, then ${go} to let the cat go` : `Set the start, then ${go} to drop the cat`)
-        : game.phase === "ready" ? (TOUCH ? "Tap Drop to start" : "Press Space to drop") : game.model.coach(game.shape, pilotInfo());
+        : game.phase === "ready" ? (TOUCH ? "Tap Drop to start" : "Press Space to drop") : game.model.coach(game.shape, pilotInfo(), TOUCH);
 
     // On-screen Drop button (touch screens): only while waiting to drop.
     const sd = $("stage-drop");
@@ -573,7 +577,6 @@
     const label = game.mode === "watch" && zeroG() ? "Let go" : "Drop";
     if (sd.textContent !== label) sd.textContent = label;
   }
-  const TOUCH = matchMedia("(hover: none), (pointer: coarse)").matches;
 
   // ---------- narrator: what the cat is doing and why (Watch mode and demos) ----------
   function updateNarrator() {
@@ -630,6 +633,12 @@
     $("demo").textContent = fl ? "Right me" : "Show me";
 
     const watch = game.mode === "watch";
+    // Touch screens: thumb controls under the scene whenever you play the cat (not in Watch mode).
+    const touchPlay = TOUCH && !watch;
+    if (document.body.classList.contains("touch-play") !== touchPlay) {
+      document.body.classList.toggle("touch-play", touchPlay);
+      renderer.resize(); // the scene's height changes
+    }
     $("mode-desc").textContent = MODE_INFO[game.mode];
     $("watch-setup").classList.toggle("mode-hidden", !watch);
     $("start-field").classList.toggle("mode-hidden", watch);
@@ -840,6 +849,7 @@
     renderer.setTargetY(menu.open ? MENU_TARGET_Y : Math.max(0.35, game.pos[1]), true);
     renderer.render();
     controls.show(game.shape);
+    touchpad.show(game.shape);
     updateHud();
     requestAnimationFrame(frame);
   }
@@ -852,5 +862,6 @@
   }
   openMenu(false);
   FC.game = game; // handy for debugging from the console
+  FC.controls = controls; // (and the target shape the panel, keys and touch controls write)
   requestAnimationFrame(frame);
 })();

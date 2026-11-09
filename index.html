@@ -66,6 +66,9 @@
     </div>
   </main>
 
+  <!-- Touch screens: thumb controls under the scene while you play the cat (filled by js/touch.js). -->
+  <section id="touchpad" aria-label="Body controls"></section>
+
   <aside id="panel">
     <div class="panel-head">
       <h1>Falling Cat</h1>
@@ -165,6 +168,12 @@
     <section>
       <details>
         <summary>How to play</summary>
+        <p class="touch-only"><b>On a phone or tablet:</b> use the controls under the scene. Drag your thumb
+        out from the middle of the <b>bend pad</b> to bend the spine (toward the edge = more bend; down = toward
+        the belly) and circle it around the edge to sweep the bend; let go to straighten. Slide <b>Twist</b>
+        (double-tap to centre). Tap <b>Front legs</b> / <b>Back legs</b> to tuck or spread them, <b>Knees</b>
+        to bend or straighten them, <b>Straighten</b> to reset. The coach at the top tells you what to do next.
+        The key names below are for a keyboard.</p>
         <p>The cat starts upside down and has nothing to push against, so its total
         angular momentum is <b>zero</b> the whole way down. You can only turn over by
         changing your body's shape.</p>
@@ -240,6 +249,7 @@
 <script src="lab/results/data.js"></script>
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/touch.js"></script>
 <script src="js/game.js"></script>
 <script>
 // Installable app: register the offline service worker (needs http(s), not file://),

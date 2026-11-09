@@ -3,13 +3,13 @@
 // (the results page's 17 MB survival data, etc.) is saved the first time it loads.
 // Pages are served from the saved copy at once and refreshed in the background,
 // so a new deploy shows up on the next launch. Bump VERSION to force a full refresh.
-const VERSION = "falling-cat-20261108-224406";
+const VERSION = "falling-cat-20261108-225320";
 const THREE = "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js";
 const CORE = [
   "./", "./index.html", "./physics.html", "./results.html", "./manifest.webmanifest",
   "./css/style.css",
   "./js/math3.js", "./js/physics.js", "./js/sim.js", "./js/pilots.js", "./js/narrator.js",
-  "./js/render.js", "./js/ui.js", "./js/game.js",
+  "./js/render.js", "./js/ui.js", "./js/touch.js", "./js/game.js",
   "./js/models/twoCylinder.js", "./js/models/modelA.js", "./js/models/modelB.js",
   "./js/models/modelC.js", "./js/models/modelD.js",
   "./lab/results/data.js",

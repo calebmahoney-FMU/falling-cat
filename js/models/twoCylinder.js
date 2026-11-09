@@ -335,19 +335,23 @@ FC.makeTwoCylinderModel = function (opts) {
     return { twist: 0, front: 1, back: 1 };
   }
 
-  function twistCoach(s, info) {
+  // touch = true: the phone's on-screen controls (twist slider, leg buttons) instead of keys.
+  function twistCoach(s, info, touch = false) {
     const err = Math.abs(info.roll), tw = s.twist / deg;
-    // Which way to twist: positive twist (E) gives positive roll for this body.
+    // Which way to twist: positive twist (E, slider right) gives positive roll for this body.
     const sign = Math.sign(info.roll / getCycleGain());
-    const [twistKey, untwistKey] = sign > 0 ? ["E", "Q"] : ["Q", "E"];
+    const togo = `(${Math.round(err / deg)}° to go)`;
     const frontTucked = s.front < 0.2 && s.back > 0.8, swapped = s.front > 0.8 && s.back < 0.2;
     if (err > 15 * deg || Math.abs(tw) > 10) {
-      if (swapped && Math.abs(tw) > 10) return `Untwist: hold ${tw > 0 ? "Q" : "E"} (${Math.round(err / deg)}° to go)`;
-      if (Math.abs(tw) > 150 || (Math.abs(tw) > 10 && !frontTucked)) return "Swap legs: spread front (X), tuck back (C)";
-      if (frontTucked) return `Twist: hold ${twistKey} (${Math.round(err / deg)}° to go)`;
-      if (err > 15 * deg) return "Tuck front legs (Z), spread back legs (V)";
+      if (swapped && Math.abs(tw) > 10)
+        return touch ? `Untwist: slide Twist back to the middle ${togo}` : `Untwist: hold ${tw > 0 ? "Q" : "E"} ${togo}`;
+      if (Math.abs(tw) > 150 || (Math.abs(tw) > 10 && !frontTucked))
+        return touch ? "Swap legs: tap Front legs (spread) and Back legs (tuck)" : "Swap legs: spread front (X), tuck back (C)";
+      if (frontTucked)
+        return touch ? `Twist: slide Twist all the way ${sign > 0 ? "right" : "left"} ${togo}` : `Twist: hold ${sign > 0 ? "E" : "Q"} ${togo}`;
+      if (err > 15 * deg) return touch ? "Tap Front legs to tuck them (keep Back legs spread)" : "Tuck front legs (Z), spread back legs (V)";
     }
-    if (s.front < 0.8 || s.back < 0.8) return "Spread your legs for landing: X and V";
+    if (s.front < 0.8 || s.back < 0.8) return touch ? "Spread your legs for landing: tap any tucked legs" : "Spread your legs for landing: X and V";
     return "Ready to land";
   }
 
@@ -356,22 +360,25 @@ FC.makeTwoCylinderModel = function (opts) {
   // (straightening shifts the roll a little) doesn't send the player back to bending.
   // Keys for bending/straightening: one joint, or both joints of a flexible spine.
   const [BEND_KEYS, UNBEND_KEYS] = flexible ? ["W and T", "S and G"] : ["W", "S"];
-  function coach(shape, info) {
+  // On the touch bend pad, sweeping with A (dir decreasing) is anticlockwise and D clockwise.
+  function coach(shape, info, touch = false) {
     const s = combine(shape);
     const err = Math.abs(info.roll);
     if (err > 30 * deg || (err > 15 * deg && s.bend >= 60 * deg)) {
-      if (s.bend < 60 * deg) return `Bend your spine: hold ${BEND_KEYS}`;
-      const key = info.roll > 0 ? "A" : "D";
-      return `Sweep the bend around: hold ${key} (${Math.round(err / deg)}° to go)`;
+      if (s.bend < 60 * deg) return touch ? "Bend your spine: drag your thumb to the edge of the bend pad" : `Bend your spine: hold ${BEND_KEYS}`;
+      const togo = `(${Math.round(err / deg)}° to go)`;
+      if (touch) return `Sweep: circle your thumb ${info.roll > 0 ? "anticlockwise" : "clockwise"} around the pad's edge ${togo}`;
+      return `Sweep the bend around: hold ${info.roll > 0 ? "A" : "D"} ${togo}`;
     }
-    if (s.bend > 20 * deg) return `Upright! Straighten your spine: hold ${UNBEND_KEYS}`;
+    if (s.bend > 20 * deg) return touch ? "Upright! Let go of the bend pad to straighten" : `Upright! Straighten your spine: hold ${UNBEND_KEYS}`;
     const p = info.pitch / deg;
     if (Math.abs(p) > 12) {
-      const tuck = p > 0 ? "front (Z)" : "back (C)";
-      return `Nose ${p > 0 ? "up" : "down"} ${Math.round(Math.abs(p))}°: tuck ${tuck} legs, bend toward belly (${BEND_KEYS}), swap legs, straighten (${UNBEND_KEYS})`;
+      const nose = `Nose ${p > 0 ? "up" : "down"} ${Math.round(Math.abs(p))}°`;
+      if (touch) return `${nose}: tuck ${p > 0 ? "Front" : "Back"} legs, drag the pad down (belly), swap the legs, let go`;
+      return `${nose}: tuck ${p > 0 ? "front (Z)" : "back (C)"} legs, bend toward belly (${BEND_KEYS}), swap legs, straighten (${UNBEND_KEYS})`;
     }
-    if (s.front < 0.8 || s.back < 0.8) return "Spread your legs for landing: X and V";
-    if (jointed && s.knees > 0.3) return "Straighten your knees to cushion the landing: K";
+    if (s.front < 0.8 || s.back < 0.8) return touch ? "Spread your legs for landing: tap any tucked legs" : "Spread your legs for landing: X and V";
+    if (jointed && s.knees > 0.3) return touch ? "Straighten your knees to cushion the landing: tap Knees" : "Straighten your knees to cushion the landing: K";
     return "Ready to land";
   }
 
