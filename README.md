@@ -10,7 +10,7 @@ A physics game about how a falling cat turns over with zero angular momentum.
 
 <br>
 
-<a href="https://calebmahoney-fmu.github.io/falling-cat/"><img src="https://img.shields.io/badge/%E2%96%B6%20%20PLAY%20%2F%20INSTALL%20THE%20APP-f29a3a?style=for-the-badge&labelColor=f29a3a&color=f29a3a" height="60" alt="Play / Install the app"></a>
+<a href="https://calebmahoney-fmu.github.io/falling-cat/"><img src="icons/install-button.png" width="400" alt="Play / Install the app"></a>
 
 <br><br>
 
