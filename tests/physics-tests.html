@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Falling Cat physics tests</title>
+<style>body{font:14px monospace;padding:16px;background:#fff;color:#111} .pass{color:#080} .fail{color:#c00}</style>
+</head>
+<body>
+<h3>Physics tests (models A, B and C)</h3>
+<pre id="out"></pre>
+<script src="../js/math3.js"></script>
+<script src="../js/physics.js"></script>
+<script src="../js/models/twoCylinder.js"></script>
+<script src="../js/models/modelA.js"></script>
+<script src="../js/models/modelB.js"></script>
+<script src="../js/models/modelC.js"></script>
+<script src="../js/models/modelD.js"></script>
+<script src="../js/sim.js"></script>
+<script>
+const { v, mul, T, log, col } = FC.m3;
+const model = FC.models.find((m) => m.id === "B");
+const deg = Math.PI / 180;
+const out = document.getElementById("out");
+const results = [];
+function report(name, ok, detail) {
+  results.push({ name, ok, detail });
+  out.innerHTML += `<span class="${ok ? "pass" : "fail"}">${ok ? "PASS" : "FAIL"}</span> ${name}: ${detail}\n`;
+}
+
+// Integrate a shape path s(t), t in [0,1], over `dur` seconds with step dt.
+function run(path, dur = 0.5, dt = 5e-4) {
+  let R = FC.m3.I(), maxL = 0, maxH = 0;
+  const n = Math.round(dur / dt);
+  for (let i = 0; i < n; i++) {
+    const s0 = path(i / n), s1 = path((i + 1) / n);
+    const st = FC.physics.step(model, R, s0, s1, dt);
+    maxL = Math.max(maxL, v.norm(st.L));
+    // Scale for comparison: shape-only angular momentum size.
+    maxH = Math.max(maxH, v.norm(FC.m3.mv(FC.physics.totalInertia(FC.physics.configuration(model, s0)), st.Omega)));
+    R = st.R;
+  }
+  const w = log(R);
+  return { R, maxL, maxH, angle: v.norm(w) / deg, axis: v.unit(w), rollX: w[0] / deg };
+}
+const shape = (o) => Object.assign({ bend: 0, dir: 0, twist: 0, front: 0.6, back: 0.6 }, o);
+
+// 1) Cone sweep: bend 60, sweep direction a full circle, straighten.
+const cone = (t) => {
+  if (t < 0.15) return shape({ bend: 60 * deg * (t / 0.15) });
+  if (t < 0.85) return shape({ bend: 60 * deg, dir: 2 * Math.PI * (t - 0.15) / 0.7 });
+  return shape({ bend: 60 * deg * (1 - (t - 0.85) / 0.15), dir: 2 * Math.PI });
+};
+const rc = run(cone);
+report("Cone sweep gives net rotation", rc.angle > 20, `net ${rc.angle.toFixed(1)}° about axis [${rc.axis.map((x) => x.toFixed(3))}], roll about x = ${rc.rollX.toFixed(1)}°`);
+report("Cone sweep rotation is about the long (x) axis", Math.abs(rc.axis[0]) > 0.98, `|axis.x| = ${Math.abs(rc.axis[0]).toFixed(4)}`);
+report("Angular momentum stays ~0 (cone)", rc.maxL < 1e-3 * rc.maxH, `max|L| = ${rc.maxL.toExponential(2)} vs scale ${rc.maxH.toExponential(2)} kg m²/s`);
+
+// 2) Reverse sweep gives the opposite rotation.
+const rcr = run((t) => { const s = cone(t); s.dir = -s.dir; return s; });
+report("Reverse sweep reverses rotation", Math.abs(rcr.rollX + rc.rollX) < 0.5, `forward ${rc.rollX.toFixed(2)}°, reverse ${rcr.rollX.toFixed(2)}°`);
+
+// 3) Timestep convergence.
+const rcFine = run(cone, 0.5, 1e-4);
+report("Converged in timestep", Math.abs(rcFine.rollX - rc.rollX) < 0.2, `dt=0.5ms: ${rc.rollX.toFixed(3)}°, dt=0.1ms: ${rcFine.rollX.toFixed(3)}°`);
+
+// 4) Speed independence (purely geometric): same path in half the time.
+const rcFast = run(cone, 0.25);
+report("Result independent of speed", Math.abs(rcFast.rollX - rc.rollX) < 0.2, `0.5s: ${rc.rollX.toFixed(3)}°, 0.25s: ${rcFast.rollX.toFixed(3)}°`);
+
+// 5) Twist out and back with no leg change: no net rotation (path encloses no area).
+const rt = run((t) => shape({ twist: 90 * deg * Math.sin(Math.PI * t) }));
+report("Twist & untwist alone gives no net rotation", rt.angle < 0.05, `net ${rt.angle.toFixed(4)}°`);
+
+// 6) Tuck-and-turn: front tucked + twist, swap legs, untwist.
+const tuck = (t) => {
+  if (t < 0.1) return shape({ front: 0.6 - 0.6 * t / 0.1, back: 0.6 + 0.4 * t / 0.1 });
+  if (t < 0.45) return shape({ front: 0, back: 1, twist: 120 * deg * (t - 0.1) / 0.35 });
+  if (t < 0.55) { const u = (t - 0.45) / 0.1; return shape({ front: u, back: 1 - u, twist: 120 * deg }); }
+  return shape({ front: 1, back: 0, twist: 120 * deg * (1 - (t - 0.55) / 0.45) });
+};
+const rtt = run(tuck);
+report("Tuck-and-turn gives net roll", Math.abs(rtt.rollX) > 15 && Math.abs(rtt.axis[0]) > 0.98, `net roll ${rtt.rollX.toFixed(1)}° (axis.x ${rtt.axis[0].toFixed(3)})`);
+report("Angular momentum stays ~0 (tuck)", rtt.maxL < 1e-3 * rtt.maxH, `max|L| = ${rtt.maxL.toExponential(2)} vs scale ${rtt.maxH.toExponential(2)}`);
+
+// 7) Bend straight toward belly and back: no net rotation.
+const rb = run((t) => shape({ bend: 80 * deg * Math.sin(Math.PI * t) }));
+report("Bend & unbend alone gives no net rotation", rb.angle < 0.05, `net ${rb.angle.toFixed(4)}°`);
+
+// Roll per full cone cycle at several bend angles (for tuning the game).
+let tbl = "";
+for (const b of [20, 40, 60, 80, 100]) {
+  const r = run((t) => {
+    if (t < 0.15) return shape({ bend: b * deg * (t / 0.15) });
+    if (t < 0.85) return shape({ bend: b * deg, dir: 2 * Math.PI * (t - 0.15) / 0.7 });
+    return shape({ bend: b * deg * (1 - (t - 0.85) / 0.15), dir: 2 * Math.PI });
+  });
+  tbl += `bend ${b}°: roll ${r.rollX.toFixed(1)}°; `;
+}
+report("Roll per cone cycle table", true, tbl);
+
+// ---------- pitch pump (both models) ----------
+const modelC = FC.models.find((m) => m.id === "C");
+for (const M of [model, modelC]) {
+  const start = { bend: 0, dir: 0, twist: 0, front: 1, back: 1, ...(M.jointed ? { knees: 0.3 } : {}) };
+  const up = M.runSteps(start, M.pumpSteps(1, 0)).rot.map((x) => x / deg);
+  const dn = M.runSteps(start, M.pumpSteps(-1, 0)).rot.map((x) => x / deg);
+  report(`${M.id}: leg pump gives pure pitch`, Math.abs(up[1]) > 10 && Math.abs(up[0]) < 0.5 && Math.abs(up[2]) < 0.5,
+    `rotation [${up.map((x) => x.toFixed(2))}]°`);
+  // Not exactly symmetric for C: the knee joints point backward on all four legs.
+  report(`${M.id}: reversed pump pitches the other way`, up[1] > 0 && dn[1] < 0 && Math.abs(up[1] + dn[1]) < 0.1 * up[1],
+    `+pump ${up[1].toFixed(2)}°, -pump ${dn[1].toFixed(2)}°`);
+  const gain = M.getPumpGain() / deg;
+  const small = M.runSteps(start, M.pumpSteps(1, 0, M.pumpBend(10 * deg, Infinity))).rot[1] / deg;
+  report(`${M.id}: scaled pump size (asked for 10°)`, small > 8 && small < 12,
+    `full pump ${gain.toFixed(1)}° in ${M.getPumpTable()[5].t.toFixed(2)} s, scaled pump ${small.toFixed(1)}°`);
+}
+
+// ---------- model C (jointed legs) ----------
+const shapeC = (o) => Object.assign({ bend: 0, dir: 0, twist: 0, front: 0.6, back: 0.6, knees: 0.3 }, o);
+function runC(path, dur = 0.5, dt = 5e-4) {
+  let R = FC.m3.I(), maxL = 0, maxH = 0;
+  const n = Math.round(dur / dt);
+  for (let i = 0; i < n; i++) {
+    const s0 = path(i / n), s1 = path((i + 1) / n);
+    const st = FC.physics.step(modelC, R, s0, s1, dt);
+    maxL = Math.max(maxL, v.norm(st.L));
+    maxH = Math.max(maxH, v.norm(FC.m3.mv(FC.physics.totalInertia(FC.physics.configuration(modelC, s0)), st.Omega)));
+    R = st.R;
+  }
+  const w = log(R);
+  return { maxL, maxH, angle: v.norm(w) / deg, rollX: w[0] / deg };
+}
+const cCone = runC((t) => shapeC({ bend: 100 * deg * Math.min(1, t / 0.15, (1 - t) / 0.15), dir: 2 * Math.PI * Math.max(0, Math.min(1, (t - 0.15) / 0.7)),
+  knees: 0.3 + 0.5 * Math.sin(2 * Math.PI * t) ** 2 }));
+report("C: cone sweep with moving knees rolls the cat", Math.abs(cCone.rollX) > 60, `roll ${cCone.rollX.toFixed(1)}°`);
+report("C: angular momentum stays ~0", cCone.maxL < 1e-3 * cCone.maxH, `max|L| = ${cCone.maxL.toExponential(2)} vs scale ${cCone.maxH.toExponential(2)}`);
+const cKnee = runC((t) => shapeC({ knees: 0.3 + 0.7 * Math.sin(Math.PI * t) }));
+report("C: bending & straightening knees alone gives no net rotation", cKnee.angle < 0.05, `net ${cKnee.angle.toFixed(4)}°`);
+const strokeB = model.landingStroke(shape({}), 0), strokeC = modelC.landingStroke(shapeC({ knees: 0.1 }), 0);
+const strokeCbent = modelC.landingStroke(shapeC({ knees: 1 }), 0);
+report("C: jointed legs give a longer landing stroke", strokeC > 4 * strokeB && strokeCbent < strokeC,
+  `B ${(strokeB * 100).toFixed(1)} cm, C straight knees ${(strokeC * 100).toFixed(1)} cm, C fully bent ${(strokeCbent * 100).toFixed(1)} cm`);
+
+// ---------- full autopilot: roll and pitch from a 3 m drop ----------
+const UPRIGHT = [1, 0, 0, 0, 0, 1, 0, -1, 0];
+function autoFall(M, rollDeg, pitchDeg, height) {
+  const tTotal = Math.sqrt((2 * (height - M.contactHeight)) / 9.81);
+  let R = mul(mul(FC.m3.rot([1, 0, 0], rollDeg * deg), FC.m3.rot([0, 0, 1], pitchDeg * deg)), UPRIGHT);
+  let s = {};
+  for (const c of M.controls) s[c.key] = c.def;
+  const mem = {}, h = 5e-4;
+  for (let t = 0; t < tTotal; t += h) {
+    const upC = FC.m3.mv(T(R), [0, 1, 0]);
+    const info = { roll: Math.atan2(-upC[1], upC[2]), pitch: Math.atan2(R[3], Math.max(R[5], 1e-3)), timeLeft: tTotal - t };
+    const tg = M.autopilot(s, info, mem);
+    const s1 = {};
+    for (const c of M.controls) { const d = (tg[c.key] ?? s[c.key]) - s[c.key], m = c.rate * h; s1[c.key] = s[c.key] + Math.max(-m, Math.min(m, d)); }
+    R = FC.physics.step(M, R, s, s1, h).R;
+    s = s1;
+  }
+  const feet = M.ventral(s).map((u) => Math.acos(-FC.m3.mv(R, u)[1]) / deg);
+  return Math.max(...feet);
+}
+for (const M of [model, modelC]) {
+  const row = (h) => [0, 25, -25].map((p) => autoFall(M, 180, p, h));
+  const [a0, aUp, aDn] = row(5);
+  report(`${M.id}: autopilot from upside down, 25° pitch, 5 m: lands within 12°`, Math.max(a0, aUp, aDn) < 12,
+    `worst feet angle: no pitch ${a0.toFixed(1)}°, +25° ${aUp.toFixed(1)}°, -25° ${aDn.toFixed(1)}°`);
+  // Information only: from 3 m, rolling upright uses most of the fall, leaving
+  // little or no time for a pitch pump (it costs 0.2–0.4 s more).
+  const [b0, bUp, bDn] = row(3);
+  report(`${M.id}: (info) same from 3 m, time-limited`, true,
+    `worst feet angle: no pitch ${b0.toFixed(1)}°, +25° ${bUp.toFixed(1)}°, -25° ${bDn.toFixed(1)}°`);
+}
+
+// ---------- model A (twist-only spine: tuck and turn) ----------
+const modelA = FC.models.find((m) => m.id === "A");
+{
+  const startA = { bend: 0, dir: 0, twist: 0, front: 1, back: 1 };
+  const cyc = (sign) => modelA.runSteps(startA, modelA.cycleSteps(sign * 180 * deg)).rot.map((x) => x / deg);
+  const up = cyc(1), dn = cyc(-1);
+  report("A: has only twist and leg controls", modelA.controls.map((c) => c.key).join(",") === "twist,front,back",
+    modelA.controls.map((c) => c.key).join(", "));
+  report("A: a tuck-and-turn cycle is mostly roll (plus a small nose tip from the off-axis legs)",
+    Math.abs(up[0]) > 40 && Math.hypot(up[1], up[2]) < 0.25 * Math.abs(up[0]), `rotation [${up.map((x) => x.toFixed(2))}]°`);
+  const mirror = modelA.runSteps(startA, modelA.cycleSteps(-180 * deg, true)).rot.map((x) => x / deg);
+  report("A: the back-legs-first mirror cycle rolls the same way but tips the nose the other way",
+    Math.abs(mirror[0] - up[0]) < 0.5 && Math.abs(mirror[1] + up[1]) < 0.5, `front-first [${up.map((x) => x.toFixed(1))}]°, back-first [${mirror.map((x) => x.toFixed(1))}]°`);
+  const tip = (steps) => modelA.runSteps(startA, steps).rot;
+  const same3 = tip([...modelA.cycleSteps(Math.PI), ...modelA.cycleSteps(Math.PI), ...modelA.cycleSteps(Math.PI)]);
+  const alt3 = tip([...modelA.cycleSteps(Math.PI), ...modelA.cycleSteps(-Math.PI, true), ...modelA.cycleSteps(Math.PI)]);
+  const offRoll = (w) => Math.hypot(w[1], w[2]) / deg;
+  report("A: alternating cycles cancel the nose tip", offRoll(alt3) < 0.25 * offRoll(same3),
+    `off-axis rotation after 3 cycles: same ${offRoll(same3).toFixed(1)}°, alternating ${offRoll(alt3).toFixed(1)}°`);
+  report("A: the reverse cycle rolls the other way", Math.abs(up[0] + dn[0]) < 0.5, `+${up[0].toFixed(2)}°, ${dn[0].toFixed(2)}°`);
+  const twistOnly = modelA.runSteps(startA, [{ twist: 150 * deg }, { twist: 0 }]).rot;
+  report("A: twisting and untwisting with no leg change gives no net rotation", FC.m3.v.norm(twistOnly) / deg < 0.05,
+    `net ${(FC.m3.v.norm(twistOnly) / deg).toFixed(4)}°`);
+  // Angular momentum through a full cycle.
+  let R = FC.m3.I(), s = { ...startA }, maxL = 0, maxH = 0;
+  for (const w of modelA.cycleSteps(180 * deg))
+    for (let k = 0; k < 5000; k++) {
+      const s1 = { ...s };
+      for (const c of modelA.controls) { const d = w[c.key] - s[c.key], m = c.rate * 5e-4; s1[c.key] = s[c.key] + Math.max(-m, Math.min(m, d)); }
+      const st = FC.physics.step(modelA, R, s, s1, 5e-4);
+      maxL = Math.max(maxL, v.norm(st.L));
+      maxH = Math.max(maxH, v.norm(FC.m3.mv(FC.physics.totalInertia(FC.physics.configuration(modelA, s)), st.Omega)));
+      R = st.R; s = s1;
+      if (modelA.controls.every((c) => Math.abs(s[c.key] - w[c.key]) < 1e-9)) break;
+    }
+  report("A: angular momentum stays ~0", maxL < 1e-3 * maxH, `max|L| = ${maxL.toExponential(2)} vs scale ${maxH.toExponential(2)}`);
+  const a20 = autoFall(modelA, 180, 0, 20), a3 = autoFall(modelA, 180, 0, 3), c3 = autoFall(model, 180, 0, 3);
+  report("A: autopilot rights itself from upside down given 20 m", a20 < 20, `worst feet angle ${a20.toFixed(1)}°`);
+  report("A: (info) from 3 m it can't, unlike model B", true, `A ${a3.toFixed(0)}°, B ${c3.toFixed(1)}°`);
+}
+
+// ---------- model D (flexible spine: chest, waist, hips) ----------
+const modelD = FC.models.find((m) => m.id === "D");
+{
+  const keys = modelD.controls.map((c) => c.key).join(",");
+  report("D: has front/back spine joints, bend direction, legs and knees", keys === "bendF,bendB,dir,twistF,twistB,front,back,knees", keys);
+  const nD = Object.fromEntries(modelD.controls.map((c) => [c.key, c.def]));
+  const mass = modelD.bodies(nD).reduce((a, b) => a + b.m, 0);
+  report("D: weighs the same as the other cats (4 kg)", Math.abs(mass - 4) < 1e-9, `${mass.toFixed(3)} kg`);
+  // Integrate a path through D's real (per-joint) shape space.
+  function runPathD(path, dur = 0.5, dt = 5e-4) {
+    let R = FC.m3.I(), maxL = 0, maxH = 0;
+    const n = Math.round(dur / dt);
+    for (let i = 0; i < n; i++) {
+      const s0 = path(i / n), s1 = path((i + 1) / n);
+      const st = FC.physics.step(modelD, R, s0, s1, dt);
+      maxL = Math.max(maxL, v.norm(st.L));
+      maxH = Math.max(maxH, v.norm(FC.m3.mv(FC.physics.totalInertia(FC.physics.configuration(modelD, s0)), st.Omega)));
+      R = st.R;
+    }
+    const w = log(R);
+    return { maxL, maxH, angle: v.norm(w) / deg, rollX: w[0] / deg };
+  }
+  const sD = (o) => ({ ...nD, ...o });
+  const wobble = runPathD((t) => sD({ bendF: 60 * deg * Math.sin(Math.PI * t) ** 2, bendB: 30 * deg * Math.sin(2 * Math.PI * t) ** 2,
+    dir: 3 * t, twistF: 80 * deg * Math.sin(3 * t), twistB: 25 * deg * Math.sin(5 * t), front: 0.5 + 0.5 * Math.sin(4 * t), back: 0.5 + 0.5 * Math.cos(3 * t),
+    knees: 0.3 + 0.3 * Math.sin(6 * t) }));
+  report("D: angular momentum stays ~0 with every joint moving", wobble.maxL < 1e-3 * wobble.maxH,
+    `max|L| = ${wobble.maxL.toExponential(2)} vs scale ${wobble.maxH.toExponential(2)}`);
+  const frontOnly = runPathD((t) => sD({ bendF: 60 * deg * Math.sin(Math.PI * t), dir: 1.0 }));
+  report("D: bending and straightening the front joint alone gives no net rotation", frontOnly.angle < 0.05, `net ${frontOnly.angle.toFixed(4)}°`);
+  const cone = runPathD((t) => {
+    const b = Math.min(1, t / 0.15, (1 - t) / 0.15);
+    return sD({ bendF: 65 * deg * b, bendB: 35 * deg * b, dir: 2 * Math.PI * Math.max(0, Math.min(1, (t - 0.15) / 0.7)) });
+  });
+  report("D: a bend sweep (both joints) rolls the cat", Math.abs(cone.rollX) > 60, `roll ${cone.rollX.toFixed(1)}° per lap`);
+  const frontCone = runPathD((t) => {
+    const b = Math.min(1, t / 0.15, (1 - t) / 0.15);
+    return sD({ bendF: 65 * deg * b, dir: 2 * Math.PI * Math.max(0, Math.min(1, (t - 0.15) / 0.7)) });
+  });
+  report("D: (info) sweeping with the front joint only", true, `roll ${frontCone.rollX.toFixed(1)}° per lap (both joints: ${cone.rollX.toFixed(1)}°)`);
+  const d3 = autoFall(modelD, 180, 0, 3), d1 = autoFall(modelD, 180, 0, 1);
+  report("D: autopilot rights itself from upside down (3 m)", d3 < 15, `worst feet angle ${d3.toFixed(1)}° (from 1 m: ${d1.toFixed(1)}°)`);
+}
+
+// ---------- zero gravity: the cat steers by its sense of down ----------
+{
+  const R0 = FC.sim.startR(150, 10);
+  report("Zero g: errors against true up match the normal roll/pitch errors",
+    Math.abs(FC.sim.rollError(R0, [0, 1, 0]) - FC.sim.rollError(R0)) < 1e-12 && Math.abs(FC.sim.pitchError(R0, [0, 1, 0]) - FC.sim.pitchError(R0)) < 1e-12, "identical");
+  const runs = (cue, extra = {}) => [1, 2, 3].map((seed) => FC.sim.float(model, { roll: 180, cue, seed, h: 2e-3, ...extra }));
+  const avg = (rs, k) => rs.reduce((a, r) => a + r[k], 0) / rs.length;
+  const floor = runs("floor"), none = runs("none"), memSlow = runs("memory", { drift: 4 }), memFast = runs("memory", { drift: 20 });
+  report("Zero g: seeing the floor keeps the cat's feet down most of the time", avg(floor, "fracUpright") > 0.9,
+    `${(100 * avg(floor, "fracUpright")).toFixed(0)}% of 20 s, spine moved ${avg(floor, "effortLaps").toFixed(1)} turns`);
+  report("Zero g: with no sense of down it flails and is rarely feet-down", avg(none, "fracUpright") < 0.4 && avg(none, "effortLaps") > 5 * avg(floor, "effortLaps"),
+    `${(100 * avg(none, "fracUpright")).toFixed(0)}% of 20 s, spine moved ${avg(none, "effortLaps").toFixed(1)} turns`);
+  report("Zero g: a slowly fading memory beats a quickly fading one", avg(memSlow, "fracUpright") > avg(memFast, "fracUpright"),
+    `drift 4°/√s: ${(100 * avg(memSlow, "fracUpright")).toFixed(0)}%, drift 20°/√s: ${(100 * avg(memFast, "fracUpright")).toFixed(0)}%`);
+  const again = FC.sim.float(model, { roll: 180, cue: "none", seed: 2, h: 2e-3 });
+  report("Zero g: runs are reproducible from their seed", again.fracUpright === none[1].fracUpright, `${again.fracUpright} = ${none[1].fracUpright}`);
+}
+window.testResults = results;
+</script>
+</body>
+</html>

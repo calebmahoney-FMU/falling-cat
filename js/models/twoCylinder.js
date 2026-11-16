@@ -127,12 +127,16 @@ FC.makeTwoCylinderModel = function (opts) {
     return segs;
   }
 
+  // `part` names what each body belongs to (for the game's physics view).
   function bodies(s) {
     const out = [];
-    for (const h of geometry(s)) {
-      out.push({ m: h.m, I: h.I, R: h.R, p: h.center });
-      for (const leg of h.legs) for (const q of leg.masses) out.push({ m: q.m, I: null, R: null, p: q.p });
-    }
+    const segs = geometry(s);
+    segs.forEach((h, j) => {
+      const seg = flexible ? ["chest", "waist", "hips"][j] : h.head ? "front half" : "back half";
+      const legs = h.head ? "front legs" : "back legs";
+      out.push({ m: h.m, I: h.I, R: h.R, p: h.center, part: seg });
+      for (const leg of h.legs) for (const q of leg.masses) out.push({ m: q.m, I: null, R: null, p: q.p, part: legs });
+    });
     return out;
   }
 

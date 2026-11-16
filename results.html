@@ -249,7 +249,7 @@ function niceTicks(top) {
 // ---------- tiles ----------
 (function tiles() {
   const t = [];
-  if (LAB.validation) t.push([`${LAB.validation.maxErr.toFixed(4)}°`, "largest gap between engine and exact theory (21 cases)"]);
+  if (LAB.validation) t.push([`${LAB.validation.maxErr.toExponential(1)}°`, "largest gap between engine and exact theory (21 cases)"]);
   if (LAB.survival) t.push([LAB.survival.rows.length.toLocaleString(), `simulated drops in the survival map (${Math.round(LAB.survival.seconds)} s on ${navigator.hardwareConcurrency || "several"} cores)`]);
   if (LAB.optimizer) {
     const g = LAB.optimizer.results.filter((r) => r.optMinH).map((r) => 1 - r.optMinH / r.reflexMinH);

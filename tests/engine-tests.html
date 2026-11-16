@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Game engine rigor tests</title>
+<style>
+  body { font: 14px/1.5 ui-monospace, Consolas, monospace; padding: 16px; background: #fff; color: #111; max-width: 1100px; }
+  .pass { color: #0a7a2f; font-weight: 700; } .fail { color: #c00; font-weight: 700; } .info { color: #2a5bd6; font-weight: 700; }
+  h2 { font: 600 18px system-ui, sans-serif; } td { padding: 2px 8px; vertical-align: top; } .d { color: #555; }
+</style>
+</head>
+<body>
+<h2>Game engine (models A–D): the same rigor as Model 0</h2>
+<p id="sum">Running…</p>
+<table id="out"></table>
+<script src="../js/math3.js"></script>
+<script src="../js/physics.js"></script>
+<script src="../js/model0.js"></script>
+<script src="../js/models/twoCylinder.js"></script>
+<script src="../js/models/modelA.js"></script>
+<script src="../js/models/modelB.js"></script>
+<script src="../js/models/modelC.js"></script>
+<script src="../js/models/modelD.js"></script>
+<script src="../js/sim.js"></script>
+<script>
+const { v, mul, T, mv, log, I: eye, inv } = FC.m3;
+const P = FC.physics, deg = Math.PI / 180;
+const rows = [];
+const report = (name, ok, detail, info = false) => rows.push({ name, ok, detail, info });
+const angleOf = (R) => v.norm(log(R));
+const model = (id) => FC.models.find((m) => m.id === id);
+const seeded = (seed) => (k) => { const x = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); };
+
+// ---------- Model 0 run through the generic engine: compare with its exact analytic derivatives ----------
+// The generic engine only sees a list of bodies (m, I, R, p) per shape, exactly like models A–D.
+const M0 = FC.model0.create();
+const asGeneric = (m0) => ({ bodies: (s) => m0.poses(s).map((p, i) => ({ m: m0.masses[i], I: m0.Ib[i], R: p.R, p: p.c })) });
+const G0 = asGeneric(M0);
+{
+  let worstW = 0, worstO = 0, worstJ = 0;
+  for (let n = 1; n <= 20; n++) {
+    const r = seeded(n);
+    const s = { beta: (10 + 110 * r(1)) * deg, phi: 6.28 * r(2), psi: (-150 + 300 * r(3)) * deg, alpha: (-80 + 160 * r(4)) * deg };
+    const sdot = { beta: 3 * (r(5) - 0.5), phi: 9 * (r(6) - 0.5), psi: 5 * (r(7) - 0.5), alpha: 4 * (r(8) - 0.5) };
+    const exact = M0.state(s, sdot), gen = P.state(G0, s, sdot);
+    worstO = Math.max(worstO, v.norm(v.sub(gen.Omega, exact.Omega)) / v.norm(exact.Omega));
+    worstJ = Math.max(worstJ, Math.sqrt(gen.J.reduce((a, x, i) => a + (x - exact.J[i]) ** 2, 0) / exact.J.reduce((a, x) => a + x * x, 0)));
+    gen.bodies.forEach((b, i) => {
+      const e = exact.bodies[i];
+      worstW = Math.max(worstW, v.norm(v.sub(b.omega, e.omega)) / v.norm(e.omega), v.norm(v.sub(b.vel, e.vel)) / Math.max(1e-9, v.norm(e.vel)));
+    });
+  }
+  report("Model 0 through the generic engine: inertia tensor J identical to Model 0's", worstJ < 1e-14, `max relative difference ${worstJ.toExponential(1)}`);
+  report("Model 0 through the generic engine: every body's ω_i and v_i match the exact analytic derivatives (4th-order Richardson differences)",
+    worstW < 1e-9, `max relative difference ${worstW.toExponential(2)} (20 random shapes and rates)`);
+  report("Model 0 through the generic engine: Ω = −J⁻¹h matches the exact result", worstO < 1e-9, `max relative difference ${worstO.toExponential(2)}`);
+}
+{ // a whole loop: net rotation from the generic engine vs Model 0's own integrator (both 4th-order Magnus)
+  const loop = [{ beta: 70 * deg, alpha: 80 * deg }, { psi: 120 * deg }, { alpha: -40 * deg, phi: 90 * deg }, { psi: 0, phi: 360 * deg }, { beta: 0, alpha: 0 }];
+  let s = { beta: 0, phi: 0, psi: 0, alpha: 0 }, Rg = eye(), Re = eye();
+  const dt = 1e-3, seg = 0.128;
+  for (const to of loop) {
+    const s1 = { ...s, ...to }, n = Math.round(seg / dt), sdot = {};
+    for (const k of FC.model0.KEYS) sdot[k] = (s1[k] - s[k]) / seg;
+    for (let i = 0; i < n; i++) {
+      const a = { ...s }, b = {};
+      for (const k of FC.model0.KEYS) b[k] = s[k] + sdot[k] * dt;
+      Rg = P.step(G0, Rg, a, b, dt).R;
+      const e = M0.step(Re, a, sdot, dt); Re = e.RF;
+      s = b;
+    }
+  }
+  const d = angleOf(mul(T(Re), Rg));
+  report("Model 0 through the generic engine: net rotation over a loop equals Model 0's exact-derivative result", d < 1e-9,
+    `both ${(angleOf(Rg) / deg).toFixed(6)}°, difference ${(d / deg).toExponential(1)}°`);
+}
+
+// ---------- the game models A–D ----------
+const rand = (m, n) => {
+  const r = seeded(n), s = FC.sim.neutral(m), sdot = {};
+  m.controls.forEach((c, k) => {
+    s[c.key] = c.type === "dial" ? 6.28 * r(k) : c.min + (c.max - c.min) * r(k);
+    sdot[c.key] = 4 * (r(k + 20) - 0.5);
+  });
+  return { s, sdot };
+};
+for (const id of ["A", "B", "C", "D"]) {
+  const m = model(id);
+  let worstL = 0, worstP = 0, worstKE = 0;
+  for (let n = 1; n <= 10; n++) {
+    const { s, sdot } = rand(m, n);
+    const st = P.state(m, s, sdot);
+    const scale = st.bodies.reduce((a, b) => a + v.norm(b.spin) + v.norm(b.orbital), 0);
+    worstL = Math.max(worstL, v.norm(st.L) / scale);
+    worstP = Math.max(worstP, v.norm(st.P) / st.bodies.reduce((a, b) => a + b.m * v.norm(b.vel), 0));
+    const Tshape = st.bodies.reduce((a, b) => a + (b.IC ? 0.5 * v.dot(b.w, mv(b.IC, b.w)) : 0) + 0.5 * b.m * v.dot(b.dr, b.dr), 0);
+    worstKE = Math.max(worstKE, Math.abs(Tshape - 0.5 * v.dot(st.h, mv(inv(st.J), st.h)) - st.KE) / st.KE);
+  }
+  report(`Model ${id}: L = Σ(I_i ω_i + m_i r_i × v_i) assembled body by body is zero; P = 0; kinetic energy agrees two ways`,
+    worstL < 1e-12 && worstP < 1e-12 && worstKE < 1e-12, `|L|/Σ|L_i| ${worstL.toExponential(1)}, |P| ${worstP.toExponential(1)}, T ${worstKE.toExponential(1)} (10 random states)`);
+}
+
+// Piecewise-linear shape loops for the integrator tests (segments aligned with every step size used).
+function runLoop(m, loop, dt, segT = 0.064, check) {
+  let s = FC.sim.neutral(m), R = eye();
+  for (const to of loop) {
+    const s1 = { ...s, ...to }, n = Math.round(segT / dt);
+    for (let i = 0; i < n; i++) {
+      // the segment runs linearly from its fixed start s to s1: the same path for every dt
+      const a = FC.physics.lerpShape(s, s1, i / n), b = FC.physics.lerpShape(s, s1, (i + 1) / n);
+      const st = P.step(m, R, a, b, dt);
+      if (check) check(st, a, b);
+      R = st.R;
+    }
+    s = s1;
+  }
+  return R;
+}
+const loopD = [{ bendF: 50 * deg, bendB: 25 * deg, front: 0 }, { dir: Math.PI }, { twistF: 60 * deg, back: 0, knees: 0.9 }, { dir: 2 * Math.PI, front: 1 },
+  { bendF: 0, bendB: 0, twistF: 0, back: 0.6, front: 0.6, knees: 0.3 }];
+{
+  const m = model("D");
+  const ref = runLoop(m, loopD, 1e-4);
+  // (this loop is fast: half a turn of bend direction in 64 ms, so the asymptotic range starts below ~2 ms)
+  const err = [2e-3, 1e-3, 5e-4].map((dt) => angleOf(mul(T(ref), runLoop(m, loopD, dt))));
+  const orders = [Math.log2(err[0] / err[1]), Math.log2(err[1] / err[2])];
+  report("Model D (flexible spine, jointed legs): rotation integrator converges at 4th order", orders.every((p) => p > 3.7 && p < 4.3),
+    `errors ${err.map((e) => (e / deg).toExponential(2) + "°").join(", ")} at dt = 2, 1, 0.5 ms; orders ${orders.map((p) => p.toFixed(2)).join(", ")}`);
+  const slow = runLoop(m, loopD, 3e-4, 0.192), fast = runLoop(m, loopD, 1e-4, 0.064);
+  const d = angleOf(mul(T(fast), slow));
+  report("Model D: net rotation depends only on the path, not the speed (3× slower: same)", d < 1e-9, `net ${(angleOf(fast) / deg).toFixed(4)}°, difference ${(d / deg).toExponential(1)}°`);
+  // independent world-frame L from the bodies' actual motion, relative to the angular momentum the bodies carry
+  const measured = (dt) => { let worst = 0; let s = FC.sim.neutral(m), R = eye();
+    for (const to of loopD) { const s1 = { ...s, ...to }, n = Math.round(0.064 / dt);
+      for (let i = 0; i < n; i++) { const a = FC.physics.lerpShape(s, s1, i / n), b = FC.physics.lerpShape(s, s1, (i + 1) / n);
+        const st = P.step(m, R, a, b, dt);
+        const sdot = {}; for (const k in b) if (b[k] !== a[k]) sdot[k] = (b[k] - a[k]) / dt;
+        const inst = P.state(m, a, sdot), scale = inst.bodies.reduce((x, q) => x + v.norm(q.spin) + v.norm(q.orbital), 0);
+        if (scale > 1e-9) worst = Math.max(worst, v.norm(st.L) / scale);
+        R = st.R; }
+      s = s1; }
+    return worst; };
+  const a = measured(2e-3), b = measured(1e-3);
+  report("Model D: world-frame L measured independently from the bodies' actual motion → 0 as dt² (true L = 0)", a / b > 3.6 && a / b < 4.4 && b < 3e-4,
+    `max |L|/Σ|L_i| ${a.toExponential(2)} at 2 ms, ${b.toExponential(2)} at 1 ms (ratio ${(a / b).toFixed(2)}, expect 4)`);
+}
+
+// ---------- exact results through the game builder ----------
+{ // Kane–Scher: model B's body with massless legs
+  const ks = FC.makeTwoCylinderModel({ id: "KS", name: "KS", description: "", params: { ...model("B").params, legMass: 0 } });
+  let worst = 0;
+  for (const bd of [40, 80, 120]) {
+    const b = bd * deg, s0 = { ...FC.sim.neutral(ks), bend: 0, dir: 0 };
+    let R = eye(), s = s0;
+    const segs = [{ bend: b }, { dir: 2 * Math.PI }, { bend: 0 }];
+    for (const to of segs) { const s1 = { ...s, ...to }, n = 128;
+      for (let i = 0; i < n; i++) R = P.step(ks, R, FC.physics.lerpShape(s, s1, i / n), FC.physics.lerpShape(s, s1, (i + 1) / n), 1e-3).R;
+      s = s1; }
+    const P0 = ks.params, A = 0.5 * P0.halfMass * P0.radius ** 2, B = P0.halfMass * (3 * P0.radius ** 2 + P0.halfLen ** 2) / 12, hb = b / 2;
+    const exact = Math.abs(2 * Math.PI * (A * Math.cos(hb) / (A * Math.cos(hb) ** 2 + B * Math.sin(hb) ** 2) - 1)) % (2 * Math.PI);
+    const ang = angleOf(R);
+    worst = Math.max(worst, Math.min(Math.abs(ang - exact), Math.abs(2 * Math.PI - exact - ang)));
+  }
+  report("Game builder, legs massless: bend-and-sweep matches the exact Kane–Scher formula", worst < 1e-7, `max error ${(worst / deg).toExponential(1)}° (bends 40°, 80°, 120°)`);
+}
+
+// ---------- how much did the upgrade change the game's results? (old 2nd-order engine vs new) ----------
+// The old engine, kept here only for this comparison: Ω from finite differences over the step, midpoint J, R ← R exp(Ω dt).
+function oldStep(m, R, s0, s1, dt) {
+  const c0 = P.configuration(m, s0), c1 = P.configuration(m, s1), cm = P.configuration(m, P.lerpShape(s0, s1, 0.5));
+  const J = P.totalInertia(cm); let h = [0, 0, 0];
+  cm.bodies.forEach((b, i) => {
+    const b0 = c0.bodies[i], b1 = c1.bodies[i];
+    if (b.R) h = v.add(h, mv(mul(mul(b.R, b.I), T(b.R)), v.scale(log(mul(b1.R, T(b0.R))), 1 / dt)));
+    h = v.add(h, v.scale(v.cross(b.r, v.scale(v.sub(b1.r, b0.r), 1 / dt)), b.m));
+  });
+  return FC.m3.orthonormalize(mul(R, FC.m3.exp(v.scale(mv(inv(J), h), -dt))));
+}
+{
+  const lines = [];
+  for (const id of ["A", "B", "C", "D"]) {
+    const m = model(id);
+    // a reflex righting from upside down, recorded shape path, replayed through both engines at the game's old step
+    const rec = []; let s = FC.sim.neutral(m), R = FC.sim.startR(180, 0), mem = {};
+    for (let t = 0; t < (id === "A" ? 2.2 : 0.6); t += 1e-3) {
+      const tgt = m.autopilot(s, { roll: FC.sim.rollError(R), pitch: FC.sim.pitchError(R), timeLeft: 9 }, mem);
+      const s1 = FC.sim.moveToward(m, s, tgt, 1e-3); rec.push([s, s1]); R = P.step(m, R, s, s1, 1e-3).R; s = s1;
+    }
+    let Rn = FC.sim.startR(180, 0), Ro = FC.sim.startR(180, 0);
+    for (const [a, b] of rec) { Rn = P.step(m, Rn, a, b, 1e-3).R; Ro = oldStep(m, Ro, a, b, 1e-3); }
+    lines.push(`${id}: ${(angleOf(mul(T(Rn), Ro)) / deg).toFixed(4)}°`);
+  }
+  report("For information: old vs new engine, final orientation after the same reflex righting (1 ms steps)", true,
+    "difference " + lines.join(", ") + " (how far apart the two engines end up after the same moves)", true);
+}
+
+// ---------- render ----------
+const pass = rows.filter((r) => r.ok).length;
+document.getElementById("sum").innerHTML = `<span class="${pass === rows.length ? "pass" : "fail"}">${pass}/${rows.length} passed</span>`;
+document.getElementById("out").innerHTML = rows.map((r) =>
+  `<tr><td class="${r.info ? "info" : r.ok ? "pass" : "fail"}">${r.info ? "INFO" : r.ok ? "PASS" : "FAIL"}</td><td>${r.name}<div class="d">${r.detail}</div></td></tr>`).join("");
+window.results = { pass, total: rows.length, rows };
+</script>
+</body>
+</html>

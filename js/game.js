@@ -3,7 +3,9 @@
   const { v, mv } = FC.m3;
   const deg = Math.PI / 180;
   const G = 9.81;
-  const SUBSTEP = 5e-4; // simulated seconds per physics sub-step
+  // Simulated seconds per physics sub-step. The engine's 4th-order Magnus integrator is
+  // accurate to ~1e-6° per move at 2 ms (tests/engine-tests.html), and 2 ms keeps phones fast.
+  const SUBSTEP = 2e-3;
   const FLOAT_HEIGHT = 1.2;
   const CABIN_Y = 1.25; // centre of the zero-g cabin (its floor is just above the ground)
   // Challenge levels: drop height (m), slow-motion factor, random roll spread
@@ -331,6 +333,9 @@
     let maxL = 0;
     for (let i = 0; i < n; i++) {
       const s1 = moveToward(game.shape, controls.targets, h);
+      // shape rates over this sub-step (for the live physics view)
+      game.sdot = {};
+      for (const k in s1) if (s1[k] !== game.shape[k]) game.sdot[k] = (s1[k] - game.shape[k]) / h;
       if (physicsOn) {
         const st = FC.physics.step(game.model, game.R, game.shape, s1, h);
         game.R = st.R;
@@ -528,7 +533,9 @@
     const [aF, aB] = feetAngles().map((a) => a / deg);
     $("ang-front").textContent = `${aF.toFixed(0)}°`;
     $("ang-back").textContent = `${aB.toFixed(0)}°`;
-    $("hud-L").textContent = game.L < 1e-12 ? "0" : game.L.toExponential(1);
+    // Measured independently from every body's motion over a sub-step (a finite difference,
+    // so it reads ~1e-6 of the parts' own angular momenta, not exactly 0). kg·m²/s.
+    $("hud-L").textContent = game.L.toFixed(4);
 
     const modeText = { challenge: `Challenge · Level ${game.level + 1}`, free: "Free drop", float: "Zero-g practice", watch: "Watch the cat" }[game.mode];
     $("hud-mode").textContent = modeText + (zeroG() ? " · zero g" : "") + (game.demo && game.mode !== "watch" ? " · demo" : "");
@@ -576,6 +583,38 @@
     sd.hidden = menu.open || game.phase !== "ready" || game.mode === "float";
     const label = game.mode === "watch" && zeroG() ? "Let go" : "Drop";
     if (sd.textContent !== label) sd.textContent = label;
+  }
+
+  // ---------- live physics view (side panel, when open) ----------
+  // Ω, the whole-cat inertia tensor J with its principal moments, and the angular
+  // momentum of each part (spin I_i ω_i + orbital m_i r_i × v_i summed over the part's
+  // bodies): the parts' angular momenta add to zero. Cat-frame components.
+  let pvTick = 0;
+  function updatePhysicsView() {
+    if (!$("phys-view").open || ++pvTick % 6) return; // ~10 Hz, only while open
+    const moving = game.phase === "falling" || game.phase === "float";
+    const st = FC.physics.state(game.model, game.shape, moving ? game.sdot || {} : {});
+    const n = (x, d = 2) => { const y = Math.abs(x) < 5e-13 ? 0 : x; return (y >= 0 ? " " : "") + y.toFixed(d); };
+    const vec = (a, k = 1, d = 2) => `(${a.map((x) => n(x * k, d)).join(", ")})`;
+    const parts = new Map();
+    for (const b of st.bodies) {
+      const p = parts.get(b.part) || { m: 0, L: [0, 0, 0], spin: [0, 0, 0], orbital: [0, 0, 0] };
+      p.m += b.m; p.L = v.add(p.L, b.L); p.spin = v.add(p.spin, b.spin); p.orbital = v.add(p.orbital, b.orbital);
+      parts.set(b.part, p);
+    }
+    const scale = st.bodies.reduce((a, b) => a + v.norm(b.spin) + v.norm(b.orbital), 0);
+    const eig = FC.model0 ? FC.model0.eigenSym(st.J).values : null;
+    const vc = (x, sub = "") => `<span class="vc">${x}</span>${sub ? `<sub><var>${sub}</var></sub>` : ""}`;
+    $("pv").innerHTML = `
+      <div class="row">${vc("Ω")} =<span class="val">${vec(st.Omega)}</span>rad/s, the cat frame's angular velocity</div>
+      <div class="row"><b class="tn">J</b> =<div class="mat">${st.J.map((x) => `<span>${n(x * 1e4, 1)}</span>`).join("")}</div>kg·cm²</div>
+      ${eig ? `<div class="row">principal moments <var>J</var><sub>1,2,3</sub> =<span class="val">${eig.map((x) => (x * 1e4).toFixed(1)).join(", ")}</span>kg·cm²</div>` : ""}
+      <div class="scroll"><table><tr><th>part</th><th><var>m</var> kg</th><th>${vc("L")} (10⁻³ kg·m²/s): spin + orbital</th><th>|${vc("L")}|</th></tr>
+        ${[...parts].map(([name, p]) => `<tr><td>${name}</td><td>${p.m.toFixed(2)}</td><td>${vec(p.L, 1e3)}</td><td>${(v.norm(p.L) * 1e3).toFixed(2)}</td></tr>`).join("")}
+        <tr><td><b>total</b></td><td>${st.bodies.reduce((a, b) => a + b.m, 0).toFixed(2)}</td><td><b>${vec(st.L, 1e3)}</b></td><td><b>${(v.norm(st.L) * 1e3).toFixed(2)}</b></td></tr></table></div>
+      <div class="row">independent check: |${vc("L")}| measured from the bodies' motion ÷ Σ|${vc("L", "i")}| =
+        <span class="val">${moving && scale > 1e-12 ? (game.L / scale).toExponential(1) : "–"}</span></div>
+      <div class="row">kinetic energy <var>T</var> =<span class="val">${(st.KE * 1e3).toFixed(2)} mJ</span>(a scalar, not conserved)</div>`;
   }
 
   // ---------- narrator: what the cat is doing and why (Watch mode and demos) ----------
@@ -851,6 +890,7 @@
     controls.show(game.shape);
     touchpad.show(game.shape);
     updateHud();
+    updatePhysicsView();
     requestAnimationFrame(frame);
   }
 
