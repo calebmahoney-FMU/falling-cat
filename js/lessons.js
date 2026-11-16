@@ -319,7 +319,11 @@ FC.lessons = (function () {
         if (finished || ++tickN % 4) return; // checks at ~15 Hz
         if (L.steps[step].check(api, mem)) {
           // a short buzz on phones that allow it (setting: fallingcat.vibrate)
-          try { if (navigator.vibrate && JSON.parse(localStorage.getItem("fallingcat.vibrate") ?? "true")) navigator.vibrate(step + 1 >= L.steps.length ? [40, 60, 40] : 30); } catch {}
+          try {
+            if (navigator.vibrate && JSON.parse(localStorage.getItem("fallingcat.vibrate") ?? "true") &&
+                (!navigator.userActivation || navigator.userActivation.hasBeenActive)) // only after the user has tapped
+              navigator.vibrate(step + 1 >= L.steps.length ? [40, 60, 40] : 30);
+          } catch {}
           step++;
           if (step >= L.steps.length) {
             finished = true;

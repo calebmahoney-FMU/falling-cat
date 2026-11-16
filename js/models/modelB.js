@@ -6,7 +6,7 @@ FC.models.push(
   FC.makeTwoCylinderModel({
     id: "B",
     name: "B · Two-cylinder cat with legs",
-    coat: { fur: "#e0883a", belly: "#f6f0e6", eyes: "#222222" }, // ginger
+    coat: { fur: "#e0883a", belly: "#f6f0e6", eyes: "#d9a21b" }, // ginger, amber eyes
     description:
       "Two rigid body halves joined by a flexible spine (the Kane–Scher model, 1969), plus legs " +
       "that can tuck in or spread out. Bend the spine and sweep the bend direction around to " +

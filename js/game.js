@@ -304,6 +304,7 @@
     game.absorb = { t: 0, v: vImpact, d, a, dur: vImpact / a, y0: game.pos[1], shape0: { ...game.shape },
       impact: 1 + a / G };
     game.phase = "absorbing";
+    renderer.landingPuff(game.pos[0], game.pos[2], game.absorb.impact); // dust puff, bigger for a harder hit
   }
 
   function absorbStep(simDt) {
@@ -438,7 +439,8 @@
     if (game.demo && game.mode !== "watch") text += "\n(computer demo: try it yourself!)";
     // Phones: a buzz whose length grows with the impact (20 ms for a soft landing, up to 250 ms),
     // and a double buzz for a bad landing.
-    if (navigator.vibrate && $("vibrate-on").checked) {
+    // (browsers allow vibration only after the user has tapped the page)
+    if (navigator.vibrate && $("vibrate-on").checked && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) {
       try { navigator.vibrate(success ? Math.round(Math.min(250, 15 + 1.6 * ab.impact)) : [120, 80, 160]); } catch {}
     }
     // Landing record (the guided lessons check these). demo = the player pressed "Show me".
@@ -926,6 +928,7 @@
       controls.targets = { ...game.shape };
     }
     renderer.updateCat(game.shape, game.R, game.pos);
+    renderer.setWind(!menu.open && game.phase === "falling" ? game.vy : 0); // wind streaks grow with falling speed
     renderer.setTargetY(menu.open ? MENU_TARGET_Y : Math.max(0.35, game.pos[1]), true);
     renderer.render();
     controls.show(game.shape);
@@ -982,5 +985,6 @@
   if (FC.lessons) lesson = FC.lessons.mount("game", lessonApi, $("lesson-card")); // closes the menu itself
   FC.game = game; // handy for debugging from the console
   FC.controls = controls; // (and the target shape the panel, keys and touch controls write)
+  FC.renderer = renderer; // (and the scene, for close-up screenshots)
   requestAnimationFrame(frame);
 })();
