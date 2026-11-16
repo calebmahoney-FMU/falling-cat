@@ -58,8 +58,8 @@
       </span>
     </div>
     <button id="stage-drop" class="primary" hidden>Drop</button>
-    <!-- Small screens: the current lesson step on the scene (tap: scroll to the full lesson card). -->
-    <button id="lesson-chip" hidden></button>
+    <!-- Guided lesson card over the scene (filled by js/lessons.js). Phones: folded to one line, tap to open. -->
+    <section id="lesson-card" hidden aria-live="polite"></section>
     <div id="hint">Drag to orbit · scroll to zoom</div>
     <div id="views">
       <button data-view="front">Front</button>
@@ -77,11 +77,9 @@
       <button id="open-menu" class="small-btn" title="Back to the main menu">Menu <kbd>Esc</kbd></button>
     </div>
     <p class="tagline">You are the cat. Nothing to push against. Land on your feet.
-      <a href="lessons.html" class="results-link">Guided lessons →</a>
+      <a href="index.html?lessons" class="results-link" id="panel-lessons">Guided lessons →</a>
       <a href="physics.html" class="results-link">The physics behind it →</a>
       <a href="results.html" class="results-link">See the simulation results →</a></p>
-    <!-- Guided lesson (index.html?lesson=N): filled by js/lessons.js -->
-    <section id="lesson-card" hidden></section>
 
     <section>
       <label class="field">Model
@@ -242,7 +240,7 @@
     <div class="menu-row"><span class="menu-label">Mode</span><div id="menu-modes" class="menu-row"></div></div>
     <div class="menu-actions">
       <button id="menu-start" class="primary">Start <kbd>Enter</kbd></button>
-      <a href="lessons.html" class="menu-pill" style="border-color:var(--accent)"><b>Lessons</b></a>
+      <button id="menu-lessons" class="menu-pill" style="border-color:var(--accent)"><b>Lessons</b></button>
       <button id="install-app" class="menu-pill" hidden title="Add Falling Cat to this device as an app">Install app</button>
       <a href="physics.html" class="menu-pill">The physics</a>
       <a href="model0.html" class="menu-pill" title="Two cylinders and one leg: inertia tensor and angular momentum, body by body">Model 0 (physics)</a>
@@ -250,6 +248,22 @@
     </div>
   </div>
   <div class="menu-caption" id="menu-caption"></div>
+</div>
+
+<!-- Lessons screen (menu → Lessons): the course, your progress, and Start. Laid over the scene like the menu. -->
+<div id="lessons-home" class="closed">
+  <div class="lh-box">
+    <h1 class="menu-title">Lessons</h1>
+    <p class="lh-sub">How can something with nothing to push against turn itself over? Seven short lessons, from the simplest
+      body to a real cat. Do the moves; each lesson then shows why they worked, with your own numbers.</p>
+    <div class="lh-progress"><span id="lh-count"></span><div class="lh-bar"><div id="lh-bar"></div></div></div>
+    <div class="lh-actions">
+      <button id="lh-start" class="primary">Start <kbd>Enter</kbd></button>
+      <button id="lh-continue" class="menu-pill" hidden></button>
+    </div>
+    <ol id="lh-list"></ol>
+    <div class="lh-foot"><button id="lh-back" class="menu-pill">← Main menu</button><button id="lh-reset" class="menu-pill">Reset progress</button></div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
@@ -263,6 +277,7 @@
 <script src="js/sim.js"></script>
 <script src="js/pilots.js"></script>
 <script src="js/model0.js"></script>
+<script src="js/models/model0game.js"></script>
 <script src="js/narrator.js"></script>
 <script src="lab/results/data.js"></script>
 <script src="js/render.js"></script>

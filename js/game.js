@@ -83,8 +83,8 @@
     for (const m of FC.models) {
       const o = document.createElement("option");
       o.value = m.id;
-      o.textContent = m.available ? m.name : `${m.name} (coming soon)`;
-      o.disabled = !m.available;
+      o.textContent = m.inMenu === false ? `${m.name} (lessons)` : m.available ? m.name : `${m.name} (coming soon)`;
+      o.disabled = !m.available || m.inMenu === false; // Model 0: shown while a lesson uses it, not pickable
       sel.appendChild(o);
     }
     sel.value = "B";
@@ -108,6 +108,7 @@
   const spineDeg = (s = game.shape) => (game.model.spineAngle ? game.model.spineAngle(s) : s.bend) / deg;
 
   function startOrientation() {
+    if (game.model.kind === "model0") return FC.sim.UPRIGHT.slice(); // Model 0 floats level, leg down
     if (game.mode === "watch") return FC.sim.startR(+$("roll").value, +$("pitch").value);
     let roll = 180, pitch = 0;
     const challenge = game.mode === "challenge";
@@ -190,7 +191,7 @@
       controls.reset();
       game.shape = neutralShape();
     }
-    controls.dialStart = game.shape.dir;
+    controls.dialStart = game.shape.dir ?? game.shape.phi ?? 0;
     game.R = startOrientation();
     game.t = 0;
     game.L = 0;
@@ -243,7 +244,7 @@
     } else if (demo) {
       controls.reset();
       game.shape = neutralShape();
-      controls.dialStart = game.shape.dir;
+      controls.dialStart = game.shape.dir ?? game.shape.phi ?? 0;
     }
     game.demo = demo;
     controls.enabled = !demo;
@@ -703,7 +704,7 @@
     $("watch-setup").classList.toggle("mode-hidden", !watch);
     $("start-field").classList.toggle("mode-hidden", watch);
     $("coach-on").parentElement.classList.toggle("mode-hidden", watch);
-    $("demo").classList.toggle("mode-hidden", watch);
+    $("demo").classList.toggle("mode-hidden", watch || !game.model.autopilot); // nothing to demonstrate for Model 0
     $("drop").firstChild.textContent = watch ? "Drop the cat " : "Drop ";
     $("body-title").textContent = watch ? "Starting pose" : "Your body";
     $("body-note").textContent = watch ? "How the cat is held before it's dropped. Once falling, the cat takes over." : "";
@@ -797,7 +798,12 @@
   window.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
     if (menu.open) {
-      if (e.key === "Enter") { e.preventDefault(); closeMenu(); }
+      if (lessonsHomeOpen()) { // Lessons screen: Enter starts lesson 1, Esc goes back to the menu
+        if (e.key === "Enter" && e.target.tagName !== "BUTTON") { e.preventDefault(); startLesson(1); }
+        else if (e.key === "Escape") { closeLessonsHome(); buildMenu(); }
+        return;
+      }
+      if (e.key === "Enter" && e.target.id !== "menu-lessons") { e.preventDefault(); closeMenu(); }
       return;
     }
     if (e.key === "Escape") openMenu();
@@ -822,7 +828,7 @@
 
   // Buttons for the models and modes; the chosen model's description goes in one line below.
   function buildMenu() {
-    const models = FC.models.filter((m) => m.available).sort((a, b) => a.id.localeCompare(b.id));
+    const models = FC.models.filter((m) => m.available && m.inMenu !== false).sort((a, b) => a.id.localeCompare(b.id));
     $("menu-models").innerHTML = models.map((m) =>
       `<button class="menu-pill${m.id === menu.model ? " on" : ""}" data-model="${m.id}" title="${MODEL_TAGS[m.id] || ""}">
         <b>${m.id}</b>${MODEL_SHORT[m.id] || m.name}</button>`).join("");
@@ -871,6 +877,12 @@
   function openMenu(sync = true, fromBack = false) {
     if (!fromBack && history.state && history.state.fcGame) history.back(); // drop our entry; popstate then finds the menu open
     keepAwake(false);
+    endLesson(); // the menu (or Back) leaves any lesson
+    // The menu shows a cat turning on the ground: after a Model 0 lesson, go back to the last cat played.
+    if (game.model.inMenu === false) {
+      const id = store.get("menuModel", "B");
+      setModel(FC.models.some((m) => m.id === id && m.inMenu !== false) ? id : "B");
+    }
     menu.open = true;
     hideBanner();
     menu.model = game.model.id;
@@ -888,8 +900,7 @@
     menu.open = false;
     if (!(history.state && history.state.fcGame)) history.pushState({ fcGame: true }, "");
     keepAwake(true);
-    store.set("menuModel", menu.model);
-    store.set("menuMode", menu.mode);
+    if (menu.model !== "0") { store.set("menuModel", menu.model); store.set("menuMode", menu.mode); } // not the lessons-only Model 0
     document.body.classList.remove("menu-open");
     $("menu").classList.add("closed");
     renderer.resize();
@@ -935,24 +946,22 @@
     touchpad.show(game.shape);
     updateHud();
     updatePhysicsView();
-    if (lesson) { lesson.tick(); updateLessonChip(); }
+    if (lesson) lesson.tick();
+    updateMomentumArrows();
     renderer.adaptQuality(realDt);
     requestAnimationFrame(frame);
   }
 
-  // Small screens and touch: the current lesson step as one strip on the scene (the full card is in the panel below).
-  let chipHtml = "";
-  function updateLessonChip() {
-    const el = $("lesson-chip"), show = !menu.open && (TOUCH || innerWidth < 760);
-    el.hidden = !show;
-    if (!show) return;
-    const c = lesson.chip();
-    const html = `<b>Lesson ${c.id} · ${c.finished ? "done ✓" : `step ${c.step}/${c.steps}`}</b> ${c.text}${c.status ? ` <i>${c.status}</i>` : ""}`;
-    if (html !== chipHtml) { el.innerHTML = html; chipHtml = html; el.classList.toggle("finished", c.finished); }
+  // Model 0: an arrow for each body's angular momentum L_i (world frame), from the body's centre of mass.
+  // They always add to zero: when one body turns one way, the others carry the opposite angular momentum.
+  const BODY_COLORS = [0xe8833a, 0x2a78d6, 0x1baf7a];
+  function updateMomentumArrows() {
+    if (menu.open || game.model.kind !== "model0") return renderer.setVectors(null);
+    const st = FC.physics.state(game.model, game.shape, game.phase === "float" ? game.sdot || {} : {});
+    renderer.setVectors(st.bodies.map((b, i) => ({ v: mv(game.R, b.L), color: BODY_COLORS[i] })));
   }
-  $("lesson-chip").addEventListener("click", () => $("lesson-card").scrollIntoView({ behavior: "smooth", block: "start" }));
 
-  // ---------- guided lessons (lessons.html → index.html?lesson=N) ----------
+  // ---------- guided lessons: menu → Lessons → Start → lesson 1, all on the game screen ----------
   // start(): pick the model and mode (as the menu does), then set panel inputs by id.
   function setInput(id, value) {
     const el = $(id);
@@ -962,6 +971,7 @@
     else el.value = value;
     el.dispatchEvent(new Event(el.tagName === "SELECT" || el.type === "checkbox" ? "change" : "input"));
   }
+  let lessonR0 = FC.m3.I(); // orientation when a Model 0 lesson started
   const lessonApi = {
     game,
     get landings() { return game.landings; },
@@ -972,8 +982,72 @@
       for (const [id, value] of Object.entries(inputs)) setInput(id, value);
       reset();
     },
+    // Model 0 (lessons 1–3): floating in zero-g practice, level, straight; leg mass as given.
+    useModel0(legMass) {
+      const i = FC.models.findIndex((m) => m.id === "0");
+      FC.models[i] = FC.makeModel0Game(legMass);
+      this.start({ model: "0", mode: "float" });
+      if (game.model !== FC.models[i]) setModel("0"); // already Model 0 but another leg mass: rebuild
+      lessonR0 = game.R.slice();
+      // Broadside view (its long axis runs left-right on screen), a little further back on narrow screens.
+      Object.assign(renderer.orbit, { theta: 0.35, phi: 1.33, dist: innerWidth < 760 ? 2.0 : 1.5 });
+    },
+    get model() { return game.model; },
+    get m0() { return game.model.m0; },
+    get s() { return game.shape; },
+    get st() { return FC.physics.state(game.model, game.shape, game.phase === "float" ? game.sdot || {} : {}); },
+    net: () => FC.m3.log(FC.m3.mul(game.R, FC.m3.T(lessonR0))), // rotation of the back cylinder since the start (world frame)
   };
   let lesson = null;
+
+  function startLesson(id) {
+    if (lesson) lesson.destroy();
+    closeLessonsHome();
+    document.body.classList.add("in-lesson");
+    game.landings = []; // a fresh record for this lesson's checks
+    lesson = FC.lessons.mount(lessonApi, $("lesson-card"), id, {
+      next: (n) => startLesson(n),
+      home: () => openLessonsHome(),
+      exit: () => { endLesson(); openMenu(); },
+    });
+    if (!lesson) endLesson();
+    // Model 0 lessons: the panel shows only Model 0's controls (no cat modes, drop settings or Drop button).
+    document.body.classList.toggle("lesson-model0", !!lesson && game.model.kind === "model0");
+  }
+  function endLesson() {
+    if (lesson) lesson.destroy();
+    lesson = null;
+    document.body.classList.remove("in-lesson", "lesson-model0");
+  }
+
+  // The Lessons screen: an overlay like the main menu (the menu's turning cat stays behind it).
+  function openLessonsHome() {
+    endLesson();
+    if (!menu.open) openMenu();
+    $("menu").classList.add("closed");
+    $("lessons-home").classList.remove("closed");
+    const done = FC.lessons.progress(), L = FC.lessons.LESSONS, n = L.filter((x) => done[x.id]).length;
+    const nextUp = L.find((x) => !done[x.id]);
+    $("lh-count").textContent = `${n} of ${L.length} done`;
+    $("lh-bar").style.width = `${(100 * n) / L.length}%`;
+    $("lh-continue").hidden = !(n > 0 && nextUp);
+    if (nextUp) $("lh-continue").textContent = `Continue: lesson ${nextUp.id}`;
+    $("lh-list").innerHTML = L.map((x) => `<li><button data-id="${x.id}" class="${done[x.id] ? "done" : ""}">
+      <span class="lh-n">${done[x.id] ? "✓" : x.id}</span><span><b>${x.title}</b><small>${x.tagline}</small></span></button></li>`).join("");
+    $("lh-start").focus({ preventScroll: true });
+  }
+  function closeLessonsHome() {
+    $("lessons-home").classList.add("closed");
+    $("menu").classList.remove("closed");
+  }
+  const lessonsHomeOpen = () => !$("lessons-home").classList.contains("closed");
+  $("menu-lessons").addEventListener("click", openLessonsHome);
+  $("panel-lessons").addEventListener("click", (e) => { e.preventDefault(); openLessonsHome(); });
+  $("lh-start").addEventListener("click", () => startLesson(1));
+  $("lh-continue").addEventListener("click", () => { const d = FC.lessons.progress(); startLesson((FC.lessons.LESSONS.find((x) => !d[x.id]) || {}).id || 1); });
+  $("lh-list").addEventListener("click", (e) => { const b = e.target.closest("button[data-id]"); if (b) startLesson(+b.dataset.id); });
+  $("lh-back").addEventListener("click", () => { closeLessonsHome(); buildMenu(); });
+  $("lh-reset").addEventListener("click", () => { FC.lessons.reset(); openLessonsHome(); });
 
   game.level = Math.min(LEVELS.length - 1, store.get("level", 0));
   initModels();
@@ -982,7 +1056,10 @@
     setModel(menu.model);
   }
   openMenu(false);
-  if (FC.lessons) lesson = FC.lessons.mount("game", lessonApi, $("lesson-card")); // closes the menu itself
+  // Links into the course: index.html?lessons opens the Lessons screen, ?lesson=N starts lesson N.
+  const qs = new URLSearchParams(location.search);
+  if (qs.has("lesson")) startLesson(+qs.get("lesson"));
+  else if (qs.has("lessons")) openLessonsHome();
   FC.game = game; // handy for debugging from the console
   FC.controls = controls; // (and the target shape the panel, keys and touch controls write)
   FC.renderer = renderer; // (and the scene, for close-up screenshots)

@@ -2,83 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Falling Cat Lessons</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-<style>
-  :root {
-    color-scheme: light;
-    --page: #f9f9f7; --surface: #fcfcfb; --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
-    --ring: rgba(11,11,11,0.10); --accent: #2a78d6; --ok: #1baf7a;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      color-scheme: dark;
-      --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
-      --ring: rgba(255,255,255,0.10); --accent: #3987e5; --ok: #2fc48a;
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
-    --ring: rgba(255,255,255,0.10); --accent: #3987e5; --ok: #2fc48a;
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--page); color: var(--text); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
-  nav { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
-  a { color: var(--accent); }
-  h1 { font-size: 28px; margin: 10px 0 4px; }
-  .lede { color: var(--text-2); margin: 0 0 14px; }
-  .bar { height: 8px; border-radius: 4px; background: var(--ring); overflow: hidden; margin: 6px 0 18px; }
-  .bar div { height: 100%; background: var(--ok); width: 0; }
-  .part { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 22px 0 6px; }
-  a.lesson { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; text-decoration: none; color: inherit;
-    background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 12px 14px; margin: 8px 0; }
-  a.lesson:hover { border-color: var(--accent); }
-  .num { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--ring); }
-  .done .num { background: var(--ok); color: #fff; }
-  .t { font-weight: 600; }
-  .d { color: var(--text-2); font-size: 14px; }
-  .go { color: var(--accent); font-size: 14px; white-space: nowrap; }
-  .done .go { color: var(--ok); }
-  button { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--ring); background: var(--surface); color: var(--text-2); cursor: pointer; margin-top: 18px; }
-</style>
+<!-- The lessons now live inside the game: this page forwards there (old links keep working). -->
+<meta http-equiv="refresh" content="0; url=index.html?lessons">
+<script>location.replace("index.html?lessons" + location.hash);</script>
 </head>
-<body>
-<main>
-  <nav><a href="index.html">← Falling Cat game</a><a href="model0.html">Model 0</a><a href="physics.html">The physics</a></nav>
-  <h1>Lessons</h1>
-  <p class="lede">A short course on how something with nothing to push against can turn itself over. Start with the simplest body,
-    two cylinders and a leg, and finish with a cat. Each lesson takes a few minutes: do the moves, then see why they worked.</p>
-  <div id="progress-text" class="d"></div>
-  <div class="bar"><div id="bar"></div></div>
-  <div id="list"></div>
-  <button id="reset">Reset progress</button>
-</main>
-<script src="js/lessons.js"></script>
-<script>
-  function render() {
-    const done = FC.lessons.progress(), L = FC.lessons.LESSONS;
-    const n = L.filter((x) => done[x.id]).length;
-    document.getElementById("progress-text").textContent = `${n} of ${L.length} done`;
-    document.getElementById("bar").style.width = `${(100 * n) / L.length}%`;
-    const nextId = (L.find((x) => !done[x.id]) || {}).id;
-    let html = "", lastHost = null;
-    for (const x of L) {
-      if (x.host !== lastHost) {
-        html += `<div class="part">${x.host === "model0" ? "Part 1 · Model 0: two cylinders and a leg" : "Part 2 · The cats"}</div>`;
-        lastHost = x.host;
-      }
-      html += `<a class="lesson ${done[x.id] ? "done" : ""}" href="${FC.lessons.url(x)}">
-        <span class="num">${done[x.id] ? "✓" : x.id}</span>
-        <span><span class="t">${x.title}</span><br><span class="d">${x.tagline}</span></span>
-        <span class="go">${done[x.id] ? "Done · again" : x.id === nextId ? "Start →" : "Open"}</span></a>`;
-    }
-    document.getElementById("list").innerHTML = html;
-  }
-  document.getElementById("reset").addEventListener("click", () => { FC.lessons.reset(); render(); });
-  render();
-</script>
-</body>
+<body><p><a href="index.html?lessons">Open the lessons in the game →</a></p></body>
 </html>

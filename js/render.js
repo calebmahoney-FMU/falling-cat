@@ -338,9 +338,57 @@ FC.Renderer = class {
     });
   }
 
+  // Model 0 (lessons): the three rigid bodies exactly as the physics has them: two solid
+  // cylinders (front orange, back blue) and the leg rod (green), plus a small joint marker.
+  setModel0(model) {
+    const { cyl, leg } = model.params;
+    const mat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5, metalness: 0.05 });
+    const mesh = (r, len, axis, m) => {
+      const g = new THREE.CylinderGeometry(r, r, len, 40);
+      if (axis === 0) g.rotateZ(-Math.PI / 2); else g.rotateX(Math.PI / 2); // three's cylinders run along y
+      const o = new THREE.Mesh(g, m); o.castShadow = true; o.matrixAutoUpdate = false; return o;
+    };
+    const root = new THREE.Group();
+    root.matrixAutoUpdate = false;
+    const meshes = [mesh(cyl.r, cyl.len, 0, mat(0xe8833a)), mesh(cyl.r, cyl.len, 0, mat(0x2a78d6)), mesh(leg.r, leg.len, 2, mat(0x1baf7a))];
+    const joint = new THREE.Mesh(new THREE.SphereGeometry(0.012, 16, 12), mat(0xdddddd));
+    joint.matrixAutoUpdate = false;
+    root.add(...meshes, joint);
+    this.scene.add(root);
+    this.cat = { root, kind: "model0", meshes, joint, model };
+  }
+
+  // Arrows from the body's centre of mass (world-frame vectors), rescaled so the largest recent one is
+  // about 0.35 m long. list: [{ v: [x, y, z], color }] or null to hide.
+  setVectors(list) {
+    this.vecArrows = this.vecArrows || [];
+    if (!list) { this.vecArrows.forEach((a) => (a.visible = false)); return; }
+    const mags = list.map((q) => Math.hypot(...q.v));
+    this.vecMax = Math.max((this.vecMax || 1e-9) * 0.995, ...mags, 1e-9);
+    list.forEach((q, i) => {
+      let a = this.vecArrows[i];
+      if (!a) {
+        a = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.1, q.color, 0.04, 0.025);
+        // drawn on top: the arrows start inside the bodies (at the centre of mass)
+        a.line.material.depthTest = a.cone.material.depthTest = false;
+        a.line.material.linewidth = 2; a.renderOrder = 10;
+        this.scene.add(a); this.vecArrows[i] = a;
+      }
+      a.setColor(q.color);
+      const len = (0.35 * mags[i]) / this.vecMax;
+      a.visible = len > 0.01;
+      if (!a.visible) return;
+      a.position.copy(this.catPos);
+      a.setDirection(new THREE.Vector3(q.v[0] / mags[i], q.v[1] / mags[i], q.v[2] / mags[i]));
+      a.setLength(len, Math.min(0.04, len * 0.35), Math.min(0.025, len * 0.22));
+    });
+    for (let i = list.length; i < this.vecArrows.length; i++) this.vecArrows[i].visible = false;
+  }
+
   // Build the cat visual for a model whose geometry() returns body segments.
   setModel(model) {
     if (this.cat) this.scene.remove(this.cat.root);
+    if (model.kind === "model0") return this.setModel0(model);
     const P = model.params;
     const coat = model.coat || { fur: "#e0883a", belly: "#f6f0e6", eyes: "#d9a21b" };
     const std = (o) => new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0, ...o });
@@ -484,6 +532,15 @@ FC.Renderer = class {
     root.matrix.set(R[0], R[1], R[2], pos[0], R[3], R[4], R[5], pos[1], R[6], R[7], R[8], pos[2], 0, 0, 0, 1);
     root.matrixWorldNeedsUpdate = true;
     this.catPos.set(pos[0], pos[1], pos[2]);
+    if (this.cat.kind === "model0") {
+      // each body at its pose: rotation R_i, centre of mass p_i (relative to the system's centre of mass)
+      conf.bodies.forEach((b, i) => {
+        const S = b.R, o = [b.p[0] - com[0], b.p[1] - com[1], b.p[2] - com[2]];
+        this.cat.meshes[i].matrix.set(S[0], S[1], S[2], o[0], S[3], S[4], S[5], o[1], S[6], S[7], S[8], o[2], 0, 0, 0, 1);
+      });
+      this.cat.joint.matrix.makeTranslation(-com[0], -com[1], -com[2]); // the joint is the frame's origin
+      return;
+    }
 
     const geo = model.geometry(shape);
     const up = new THREE.Vector3(0, 1, 0);

@@ -20,6 +20,9 @@ FC.TouchPad = class {
 
   build(model) {
     this.model = model;
+    this.generic = model.kind === "model0";
+    this.pad = null;
+    if (this.generic) return this.buildSliders(model);
     const has = (k) => model.controls.some((c) => c.key === k);
     const range = (re) => model.controls.filter((c) => re.test(c.key)).reduce((a, c) => a + c.max, 0);
     this.bendMax = range(/^bend/); // combined bend (both joints for a flexible spine)
@@ -53,6 +56,24 @@ FC.TouchPad = class {
       const t = this.controls.targets;
       t.knees = t.knees > 0.5 ? 0.05 : 0.95; // bent <-> straight
     });
+    this.el.querySelector(".tp-neutral").addEventListener("click", () => { if (this.controls.enabled) this.controls.reset(); });
+  }
+
+  // Model 0 (lessons): one big slider per control (β, φ, ψ, α) and Straighten. φ, the bend
+  // direction, has no end stops, so its slider spans two laps.
+  buildSliders(model) {
+    const deg = Math.PI / 180;
+    this.el.classList.remove("no-bend");
+    this.sliders = model.controls.map((c) => {
+      const min = c.type === "dial" ? -180 : c.min / deg, max = c.type === "dial" ? 540 : c.max / deg;
+      return { c, min, max };
+    });
+    this.el.innerHTML = `<div class="tp-sliders">${this.sliders.map(({ c, min, max }) =>
+      `<label class="tp-sl"><span>${c.label}</span><input type="range" min="${min}" max="${max}" step="1" value="${c.def / deg}" data-key="${c.key}"><b data-out="${c.key}"></b></label>`).join("")}
+      <button class="tp-btn tp-neutral"><small>Straighten</small><b>all</b></button></div>`;
+    this.el.querySelectorAll("input[data-key]").forEach((inp) => inp.addEventListener("input", () => {
+      if (this.controls.enabled) this.controls.targets[inp.dataset.key] = +inp.value * deg;
+    }));
     this.el.querySelector(".tp-neutral").addEventListener("click", () => { if (this.controls.enabled) this.controls.reset(); });
   }
 
@@ -122,6 +143,14 @@ FC.TouchPad = class {
     if (!this.model || this.el.offsetParent === null) return; // hidden
     const t = this.controls.targets, deg = Math.PI / 180;
     this.el.classList.toggle("disabled", !this.controls.enabled);
+    if (this.generic) {
+      for (const { c } of this.sliders) {
+        const inp = this.el.querySelector(`input[data-key="${c.key}"]`);
+        if (document.activeElement !== inp) inp.value = Math.round(t[c.key] / deg);
+        this.el.querySelector(`[data-out="${c.key}"]`).textContent = `${Math.round(shape[c.key] / deg)}°`;
+      }
+      return;
+    }
     // Twist slider: knob at the target, coloured fill to the actual twist.
     const tw = this.getSpine("twist"), twA = this.getSpine("twist", shape);
     const pos = (x) => `${50 + 50 * Math.max(-1, Math.min(1, x / this.twistMax))}%`;

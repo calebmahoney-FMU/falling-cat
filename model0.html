@@ -84,7 +84,7 @@
 </head>
 <body>
 <header>
-  <nav><a href="index.html">← Falling Cat game</a><a href="lessons.html">Lessons</a><a href="physics.html">The physics (cat)</a><a href="tests/model0-tests.html">Verification tests</a></nav>
+  <nav><a href="index.html">← Falling Cat game</a><a href="index.html?lessons">Lessons (in the game)</a><a href="physics.html">The physics (cat)</a><a href="tests/model0-tests.html">Verification tests</a></nav>
   <h1>Model 0: two cylinders and one leg</h1>
   <p>Not a cat: the simplest free-floating body that can turn itself. Change its shape and watch the inertia tensor, the angular
     velocities and the angular momenta, body by body. The total angular momentum stays zero the whole time, yet the body turns.</p>
@@ -107,7 +107,6 @@
   </div>
 
   <div>
-    <div id="lesson-card" hidden></div>
     <div class="card">
       <h2>Shape (what the body controls)</h2>
       <div class="sub">Four scalar angles. Each slider sets a target; the joint moves toward it at a fixed rate.</div>
@@ -228,7 +227,6 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="js/math3.js"></script>
 <script src="js/model0.js"></script>
-<script src="js/lessons.js"></script>
 <script>
 (function () {
   const { v, mul, T, mv, log, I: eye } = FC.m3;
@@ -450,22 +448,8 @@
     placeCamera();
     renderer.render(scene, camera);
     if (++uiTick % 3 === 0) readouts(st); // tables update at ~20 Hz
-    lastState = st;
-    if (lesson) lesson.tick();
     requestAnimationFrame(frame);
   }
-
-  // ---------- guided lessons (lessons.html → model0.html?lesson=N) ----------
-  let lastState = model.state(s, { beta: 0, phi: 0, psi: 0, alpha: 0 });
-  const lessonApi = {
-    get s() { return s; }, get model() { return model; }, get RF() { return RF; }, get st() { return lastState; },
-    setTargets: (t) => { exp = null; setTargets(t); },
-    setLegMass(m) { $("leg-m").value = m; model = M0.create({ leg: { m } }); },
-    snapNeutral() { exp = null; s = model.neutral(); setTargets(model.neutral()); }, // before the lesson starts: no motion is simulated
-    resetOrientation() { RF = eye(); RF0 = eye(); },
-    net: () => log(mul(RF, T(RF0))), // rotation vector of the back cylinder since the lesson started (world frame)
-  };
-  const lesson = FC.lessons.mount("model0", lessonApi, $("lesson-card"));
 
   syncSliders();
   requestAnimationFrame(frame);

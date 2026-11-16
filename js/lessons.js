@@ -2,14 +2,14 @@
 // four cats. Each lesson has steps with a live check; when every step is done it
 // explains what happened, using the numbers the player just produced.
 //
-// Lessons 1–3 run on model0.html, 4–7 in the game (index.html). A host page
-// mounts the lesson named in its URL (?lesson=N) with an `api` object:
-//   model0 api: s, model, RF (orientation), st (latest state), setTargets(t),
-//               setLegMass(m), snapNeutral(), resetOrientation(), net() (rotation
-//               vector of the back cylinder since the lesson started)
-//   game api:   game (FC.game), start({ model, mode, inputs }), landings (one
-//               record per landing: model, mode, height, worst, impact, v, d, demo,
-//               optimized, n), set(id, value)
+// Everything runs inside the game (index.html): the Lessons screen (menu → Lessons)
+// starts lesson 1, and each lesson's card sits over the scene. The game passes an `api`:
+//   game, start({ model, mode, inputs }), landings (one record per landing: model, mode,
+//   height, worst, bend, legs, impact, v, d, demo, optimized, n), set(id, value)
+//   for Model 0 (lessons 1–3): useModel0(legMass) (floats it level, shape straight),
+//   s (current shape), st (FC.physics.state now: J, each body's ω, L, ...), m0 (the
+//   js/model0.js instance), model (the game model), net() (rotation vector of the back
+//   cylinder since the lesson started, world frame)
 // Progress is kept in this browser (localStorage).
 var FC = (globalThis.FC = globalThis.FC || {});
 
@@ -44,25 +44,29 @@ FC.lessons = (function () {
   const LESSONS = [
     // ---------------------------------------------------------------- Model 0
     {
-      id: 1, host: "model0", title: "Inertia is a tensor",
+      id: 1, host: "game", title: "Inertia is a tensor",
       tagline: "Fold the leg and watch the inertia tensor change.",
-      intro: `How hard a body is to spin depends on the axis. That's why the inertia ${tn("J")} is a 3×3 tensor, not one number.
-        Its eigenvalues, the principal moments <var>J</var><sub>1</sub> ≤ <var>J</var><sub>2</sub> ≤ <var>J</var><sub>3</sub>, are the moments
-        about its three principal axes. Watch the "Inertia tensor" card.`,
-      setup(api) { api.setLegMass(0.3); api.snapNeutral(); api.resetOrientation(); },
+      intro: `Meet Model 0: two cylinders (orange front, blue back) and a green leg, floating with no gravity. How hard a body is to spin
+        depends on the axis. That's why the inertia ${tn("J")} is a 3×3 tensor, not one number. Its eigenvalues, the principal moments
+        <var>J</var><sub>1</sub> ≤ <var>J</var><sub>2</sub> ≤ <var>J</var><sub>3</sub>, are the moments about its three principal axes. They're shown live below.`,
+      setup(api) { api.useModel0(0.3); },
+      live(api) {
+        const e = FC.model0.eigenSym(api.st.J).values.map((x) => f(x * 1e4));
+        return `<var>J</var><sub>1</sub>, <var>J</var><sub>2</sub>, <var>J</var><sub>3</sub> = <b>${e.join(", ")}</b> kg·cm² · leg angle <var>α</var> = ${f(api.s.alpha / deg, 0)}°`;
+      },
       steps: [
-        { text: `Keep the body straight (<var>β</var> = 0) with the leg straight down (<var>α</var> = 0). Note the smallest principal moment <var>J</var><sub>1</sub>: the moment about (nearly) the long axis.`,
+        { short: "Keep it straight with the leg down; note J₁.", text: `Keep the body straight (<var>β</var> = 0) with the leg straight down (<var>α</var> = 0). Note the smallest principal moment <var>J</var><sub>1</sub>: the moment about (nearly) the long axis.`,
           check(api, mem) {
             const s = api.s;
             if (Math.abs(s.beta) > deg || Math.abs(s.alpha) > deg || Math.abs(s.psi) > deg) return false;
-            mem.a = { ...FC.model0.eigenSym(api.st.J), c3: api.st.conf.bodies[2].c };
+            mem.a = { ...FC.model0.eigenSym(api.st.J), c3: api.st.conf.bodies[2].p };
             return true;
           } },
-        { text: `Now fold the leg forward along the body: set the leg angle <var>α</var> to 80° or more (keep <var>β</var> = 0).`,
+        { short: "Fold the leg forward: α ≥ 80°.", text: `Now fold the leg forward along the body: set the leg angle <var>α</var> to 80° or more (keep <var>β</var> = 0).`,
           status: (api) => `α = ${f(api.s.alpha / deg, 0)}°`,
           check(api, mem) {
             if (api.s.alpha < 80 * deg || Math.abs(api.s.beta) > deg) return false;
-            mem.b = { ...FC.model0.eigenSym(api.st.J), c3: api.st.conf.bodies[2].c };
+            mem.b = { ...FC.model0.eigenSym(api.st.J), c3: api.st.conf.bodies[2].p };
             return true;
           } },
       ],
@@ -83,20 +87,26 @@ FC.lessons = (function () {
       },
     },
     {
-      id: 2, host: "model0", title: "Zero angular momentum",
+      id: 2, host: "game", title: "Zero angular momentum",
       tagline: "Twist the body and see the two halves cancel exactly.",
       intro: `The body floats freely, so its total angular momentum ${vc("L")} stays <b>zero</b>. To keep it simple the leg is massless here (mass 0),
-        so the two cylinders are identical and share one axis. Watch the "Body by body" card: each cylinder's ${vc("L", "i")}.`,
-      setup(api) { api.setLegMass(0); api.snapNeutral(); api.resetOrientation(); },
+        so the two cylinders are identical and share one axis. The arrows on the bodies are each one's angular momentum ${vc("L", "i")},
+        and their components along the axis are shown live below.`,
+      setup(api) { api.useModel0(0); },
+      live(api) {
+        const b = api.st.bodies, x = (i) => b[i].L[0] * 1e3; // along the shared axis x̂ (frame F), 10⁻³ kg·m²/s
+        return `along the axis: ${vc("L", "1")}·<span class="uv">x̂</span> = <b>${f(x(0), 2)}</b>, ${vc("L", "2")}·<span class="uv">x̂</span> = <b>${f(x(1), 2)}</b>,
+          sum <b>${f(x(0) + x(1), 2)}</b> (10⁻³ kg·m²/s) · back cylinder turned <b>${f(api.net()[0] / deg, 1)}°</b>`;
+      },
       steps: [
-        { text: `With the body straight (<var>β</var> = 0), twist the front cylinder: set the twist <var>ψ</var> to <b>+90°</b> or more.
+        { short: "Twist ψ to +90° or more (keep β = 0).", text: `With the body straight (<var>β</var> = 0), twist the front cylinder: set the twist <var>ψ</var> to <b>+90°</b> or more.
             While it turns, compare ${vc("L", "1")} and ${vc("L", "2")}.`,
           status: (api) => `ψ = ${f(api.s.psi / deg, 0)}°`,
           check(api, mem) {
             if (api.s.psi < 89.5 * deg || Math.abs(api.s.beta) > deg) return false;
             mem.psi = api.s.psi; mem.net = api.net(); return true;
           } },
-        { text: `Untwist: bring <var>ψ</var> back to 0.`,
+        { short: "Untwist: ψ back to 0.", text: `Untwist: bring <var>ψ</var> back to 0.`,
           status: (api) => `ψ = ${f(api.s.psi / deg, 0)}°`,
           check(api, mem) { if (Math.abs(api.s.psi) > 0.5 * deg) return false; mem.back = api.net(); return true; } },
       ],
@@ -114,11 +124,15 @@ FC.lessons = (function () {
       },
     },
     {
-      id: 3, host: "model0", title: "A loop gives a turn",
+      id: 3, host: "game", title: "A loop gives a turn",
       tagline: "Same moves, different order: a net rotation from nothing.",
       intro: `Now the leg has mass (0.3 kg). The leg is on the front cylinder, so the front body is always the heavier one about the long
         axis. Folding the leg makes it much less heavy (lesson 1). Twisting with the leg folded, then untwisting with it down, should leave something behind.`,
-      setup(api) { api.setLegMass(0.3); api.snapNeutral(); api.resetOrientation(); },
+      setup(api) { api.useModel0(0.3); },
+      live(api) {
+        const n = api.net(), ang = FC.m3.v.norm(n) / deg;
+        return `net rotation so far: <b>${f(ang, 1)}°</b> · <var>α</var> = ${f(api.s.alpha / deg, 0)}°, <var>ψ</var> = ${f(api.s.psi / deg, 0)}°`;
+      },
       steps: [
         { text: `Fold the leg: <var>α</var> ≥ 80°.`, status: (api) => `α = ${f(api.s.alpha / deg, 0)}°`, check: (api) => api.s.alpha >= 80 * deg },
         { text: `Twist: <var>ψ</var> ≥ +110°.`, status: (api) => `ψ = ${f(api.s.psi / deg, 0)}°`,
@@ -136,10 +150,10 @@ FC.lessons = (function () {
         const { v } = FC.m3, ang = v.norm(mem.net) / deg, ax = v.unit(mem.net);
         // One-axis estimate: moments about the cylinders' axis (x̂ through the joint) of the front body with the leg folded / down, and of the back.
         const about = (alpha) => {
-          const c = api.model.configuration({ beta: 0, phi: 0, psi: 0, alpha }), [b1, , b3] = c.bodies;
+          const c = api.m0.configuration({ beta: 0, phi: 0, psi: 0, alpha }), [b1, , b3] = c.bodies;
           return b1.I[0] + b3.I[0] + b3.m * (b3.c[1] ** 2 + b3.c[2] ** 2); // x̂·I x̂ of each body + m r⊥² of the leg (the cylinder is on the axis)
         };
-        const If = about(90 * deg), Iu = about(0), I2 = api.model.configuration(api.model.neutral()).bodies[1].I[0], th = mem.theta / deg;
+        const If = about(90 * deg), Iu = about(0), I2 = api.m0.configuration(api.m0.neutral()).bodies[1].I[0], th = mem.theta / deg;
         const est = th * (I2 / (If + I2) - I2 / (Iu + I2));
         return `<p>Every shape angle is back where it started, ${vc("L")} was zero the whole time, and yet the body has turned by
           <b>${f(ang, 2)}°</b> (axis (${ax.map((x) => x.toFixed(2)).join(", ")}) in the world frame, mostly the long axis).</p>
@@ -260,64 +274,60 @@ FC.lessons = (function () {
     },
   ];
 
-  const url = (L) => `${L.host === "model0" ? "model0.html" : "index.html"}?lesson=${L.id}`;
-  const STYLE = `
-    .lesson-card { border: 1.5px solid var(--accent, var(--b2, #2a78d6)); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px;
-      background: color-mix(in srgb, var(--accent, var(--b2, #2a78d6)) 7%, transparent); }
-    .lesson-card h3 { margin: 0 0 4px; font-size: 16px; }
-    .lesson-card .lk { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted, #888); }
-    .lesson-card p { margin: 6px 0; font-size: 14px; line-height: 1.5; }
-    .lesson-card ol { margin: 8px 0; padding-left: 22px; font-size: 14px; }
-    .lesson-card li { margin: 5px 0; }
-    .lesson-card li.done { color: var(--muted, #888); }
-    .lesson-card li.done::marker { content: "✓  "; color: #1baf7a; }
-    .lesson-card li.now { font-weight: 600; }
-    .lesson-card .st { display: block; font-weight: 400; font-size: 12px; color: var(--muted, #888); font-variant-numeric: tabular-nums; }
-    .lesson-card .done-box { border-top: 1px solid var(--line, var(--grid, #ccc)); margin-top: 8px; padding-top: 6px; }
-    .lesson-card .ok { color: #1baf7a; font-weight: 700; }
-    .lesson-card .nav { display: flex; gap: 12px; flex-wrap: wrap; font-size: 14px; margin-top: 6px; }
-    .lesson-card a { color: var(--accent, var(--b2, #2a78d6)); }`;
 
-  // Mount the lesson named in the URL on this host. Returns { tick } (call every frame) or null.
-  function mount(host, api, container) {
-    const id = +new URLSearchParams(location.search).get("lesson");
-    const L = LESSONS.find((x) => x.id === id && x.host === host);
+  // ---------------------------------------------------------------- the lesson card (on the game screen)
+  // mount(api, container, id, on) runs lesson `id` in the game and draws its card into `container`, a
+  // panel over the scene. on: { next(id), home(), exit() } for the card's buttons. Returns
+  // { lesson, tick() (call every frame), destroy() }.
+  function mount(api, container, id, on = {}) {
+    const L = LESSONS.find((x) => x.id === id);
     if (!L || !container) return null;
-    if (!document.getElementById("lesson-style")) {
-      const st = document.createElement("style"); st.id = "lesson-style"; st.textContent = STYLE; document.head.appendChild(st);
-    }
     const mem = {};
-    let step = 0, finished = false, lastHtml = "";
+    let step = 0, finished = false, lastHtml = "", alive = true;
     container.hidden = false;
     container.classList.add("lesson-card");
+    // Phones start with the card folded to one line; tap its header to open it.
+    container.classList.toggle("folded", matchMedia("(max-width: 760px)").matches);
     L.setup && L.setup(api, mem);
     L.steps[0].begin && L.steps[0].begin(api, mem);
     const next = LESSONS.find((x) => x.id === L.id + 1);
+    const plain = (html) => { const d = document.createElement("div"); d.innerHTML = html; return d.textContent.replace(/\s+/g, " ").trim(); };
     function render() {
+      const cur = L.steps[Math.min(step, L.steps.length - 1)];
       const items = L.steps.map((s, i) => {
         const cls = i < step || finished ? "done" : i === step ? "now" : "";
         const st = i === step && !finished && s.status ? `<span class="st">${s.status(api, mem)}</span>` : "";
         return `<li class="${cls}">${s.text}${st}</li>`;
       }).join("");
-      const html = `<div class="lk">Lesson ${L.id} of ${LESSONS.length}</div><h3>${L.title}</h3><p>${L.intro}</p><ol>${items}</ol>` +
+      const live = !finished && L.live ? `<div class="lc-live">${L.live(api, mem)}</div>` : "";
+      const fold = finished ? "Lesson complete: tap to read why it worked" : `Step ${step + 1}/${L.steps.length}: ${cur.short || plain(cur.text)}`;
+      const html =
+        `<div class="lc-head" data-act="fold"><span class="lk">Lesson ${L.id} of ${LESSONS.length}</span><b class="lc-title">${L.title}</b>` +
+        `<span class="lc-fold">${fold}${!finished && cur.status ? ` · <i>${cur.status(api, mem)}</i>` : ""}</span><span class="lc-caret" aria-hidden="true"></span></div>` +
+        `<div class="lc-body"><p class="lc-intro">${L.intro}</p><ol>${items}</ol>${live}` +
         (finished ? `<div class="done-box"><p class="ok">✓ Lesson complete</p>${mem.explained}</div>` : "") +
-        `<div class="nav">${finished && next ? `<a href="${url(next)}"><b>Next: ${next.title} →</b></a>` : ""}<a href="lessons.html">All lessons</a></div>`;
+        `<div class="nav">${finished && next ? `<button class="primary" data-act="next">Next: ${next.title} →</button>` : ""}` +
+        `${finished && !next ? `<button class="primary" data-act="home">Course complete: back to lessons</button>` : ""}` +
+        `<button data-act="home">All lessons</button><button data-act="exit">Exit lessons</button></div></div>`;
       if (html !== lastHtml) { container.innerHTML = html; lastHtml = html; }
     }
+    const onClick = (e) => {
+      const b = e.target.closest("[data-act]");
+      if (!b) return;
+      const act = b.dataset.act;
+      if (act === "fold") container.classList.toggle("folded");
+      else if (act === "next" && on.next) on.next(next.id);
+      else if (act === "home" && on.home) on.home();
+      else if (act === "exit" && on.exit) on.exit();
+    };
+    container.addEventListener("click", onClick);
     render();
     let tickN = 0;
-    const plain = (html) => { const d = document.createElement("div"); d.innerHTML = html; return d.textContent.replace(/\s+/g, " ").trim(); };
     return {
       lesson: L,
-      // Compact view of where the lesson is, for a one-line strip on small screens.
-      chip() {
-        const s = L.steps[Math.min(step, L.steps.length - 1)];
-        return { id: L.id, title: L.title, step: Math.min(step + 1, L.steps.length), steps: L.steps.length, finished,
-          text: finished ? "Lesson complete: tap to read why it worked" : s.short || plain(s.text), status: !finished && s.status ? s.status(api, mem) : "" };
-      },
       tick() {
-        if (finished || ++tickN % 4) return; // checks at ~15 Hz
-        if (L.steps[step].check(api, mem)) {
+        if (!alive || ++tickN % 4) return; // checks at ~15 Hz
+        if (!finished && L.steps[step].check(api, mem)) {
           // a short buzz on phones that allow it (setting: fallingcat.vibrate)
           try {
             if (navigator.vibrate && JSON.parse(localStorage.getItem("fallingcat.vibrate") ?? "true") &&
@@ -329,12 +339,19 @@ FC.lessons = (function () {
             finished = true;
             mem.explained = L.explain(api, mem);
             const p = load(); p[L.id] = true; save(p);
+            container.classList.remove("folded"); // open the card to show why it worked
           } else L.steps[step].begin && L.steps[step].begin(api, mem);
         }
         render();
       },
+      destroy() {
+        alive = false;
+        container.removeEventListener("click", onClick);
+        container.innerHTML = "";
+        container.hidden = true;
+      },
     };
   }
 
-  return { LESSONS, mount, url, progress: load, reset: () => save({}) };
+  return { LESSONS, mount, progress: load, reset: () => save({}) };
 })();
