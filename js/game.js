@@ -47,6 +47,7 @@
     L: 0,
     watchPose: null, // Watch mode: the starting pose the player set, restored on retry
     log: [], // flight log samples {t, front, back, bend} in degrees
+    landings: [], // one record per landing this session (for the guided lessons)
     rightedAt: null, // Watch mode: when the cat first came within 15° of upright
   };
 
@@ -317,21 +318,23 @@
     if (game.phase === "landed") return;
     if (game.phase === "absorbing") return absorbStep(simDt);
 
+    // The player's keys act once per frame; the computer's pilot (reflex or optimized
+    // move) is asked every sub-step, exactly as in the lab's headless drops (js/sim.js).
+    if (!game.demo) controls.applyKeys(simDt);
     // In Watch mode the cat holds its starting pose until its reflex kicks in.
     const delayS = +$("delay").value / 1000;
-    const reacting = game.zg ? game.zg.t >= delayS
-      : game.mode !== "watch" || game.phase !== "falling" || game.t >= delayS;
-    if (game.demo && game.schedPilot) {
-      if (reacting) controls.targets = game.schedPilot(game.shape, pilotInfo(), game.t - +$("delay").value / 1000);
-    } else if (game.demo && game.model.autopilot) {
-      if (reacting) controls.targets = game.model.autopilot(game.shape, pilotInfo(), game.pilotMem);
-    } else controls.applyKeys(simDt);
 
     const n = Math.max(1, Math.ceil(simDt / SUBSTEP));
     const h = simDt / n;
     const kOverM = airOn() ? 1 / game.mass : 0;
     let maxL = 0;
     for (let i = 0; i < n; i++) {
+      if (game.demo) {
+        const tNow = game.zg ? game.zg.t : game.t;
+        const reacting = game.zg ? tNow >= delayS : game.mode !== "watch" || game.phase !== "falling" || tNow >= delayS;
+        if (reacting && game.schedPilot) controls.targets = game.schedPilot(game.shape, pilotInfo(), tNow - delayS);
+        else if (reacting && game.model.autopilot) controls.targets = game.model.autopilot(game.shape, pilotInfo(), game.pilotMem);
+      }
       const s1 = moveToward(game.shape, controls.targets, h);
       // shape rates over this sub-step (for the live physics view)
       game.sdot = {};
@@ -356,6 +359,15 @@
         // Gravity minus air drag ½ρ(Cd·A)v², with Cd·A from the current pose.
         game.vy += (G - kOverM * FC.sim.dragK(game.model, game.shape) * game.vy * game.vy) * h;
         game.pos[1] -= game.vy * h;
+        game.t += h;
+        // Ground contact is checked every sub-step, so the body never moves on after its paws touch.
+        const low = lowestPoint();
+        if (low <= 0) {
+          game.pos[1] -= low; // paws on the ground
+          logFrame();
+          startAbsorbing();
+          break;
+        }
       }
     }
     if (physicsOn) game.L = maxL;
@@ -367,17 +379,14 @@
       if (game.zg.t >= game.zg.dur) endZeroG();
     }
 
-    if (game.phase === "falling") {
-      game.t += simDt;
-      const [f, b] = feetAngles().map((a) => a / deg);
-      game.log.push({ t: game.t, front: f, back: b, bend: spineDeg() });
-      if (game.rightedAt === null && Math.max(f, b) < 15) game.rightedAt = game.t;
-      const low = lowestPoint();
-      if (low <= 0) {
-        game.pos[1] -= low; // paws on the ground
-        startAbsorbing();
-      }
-    }
+    if (game.phase === "falling") logFrame();
+  }
+
+  // Flight log sample (feet angles from down, spine bend) and the first moment within 15° of upright.
+  function logFrame() {
+    const [f, b] = feetAngles().map((a) => a / deg);
+    game.log.push({ t: game.t, front: f, back: b, bend: spineDeg() });
+    if (game.rightedAt === null && Math.max(f, b) < 15) game.rightedAt = game.t;
   }
 
   // ---------- landing & scoring ----------
@@ -425,6 +434,9 @@
       else text += ` (best ${best})`;
     }
     if (game.demo && game.mode !== "watch") text += "\n(computer demo: try it yourself!)";
+    // Landing record (the guided lessons check these). demo = the player pressed "Show me".
+    game.landings.push({ n: game.landings.length + 1, model: game.model.id, mode: game.mode, demo: game.demo && game.mode !== "watch",
+      optimized: !!game.schedPilot, height: game.height, worst, bend: bendDeg, legs, impact: ab.impact, v: ab.v, d: ab.d });
     drawChart();
     showBanner(title, text, cls, success && game.mode === "challenge" && !game.demo && game.level < LEVELS.length - 1);
   }
@@ -891,8 +903,32 @@
     touchpad.show(game.shape);
     updateHud();
     updatePhysicsView();
+    if (lesson) lesson.tick();
     requestAnimationFrame(frame);
   }
+
+  // ---------- guided lessons (lessons.html → index.html?lesson=N) ----------
+  // start(): pick the model and mode (as the menu does), then set panel inputs by id.
+  function setInput(id, value) {
+    const el = $(id);
+    if (!el) return;
+    if (id === "height") el.value = nearestHeightIndex(value);
+    else if (el.type === "checkbox") el.checked = !!value;
+    else el.value = value;
+    el.dispatchEvent(new Event(el.tagName === "SELECT" || el.type === "checkbox" ? "change" : "input"));
+  }
+  const lessonApi = {
+    game,
+    get landings() { return game.landings; },
+    set: setInput,
+    start({ model, mode, inputs = {} }) {
+      menu.model = model; menu.mode = mode;
+      closeMenu(); // applies the model and mode, like the Start button
+      for (const [id, value] of Object.entries(inputs)) setInput(id, value);
+      reset();
+    },
+  };
+  let lesson = null;
 
   game.level = Math.min(LEVELS.length - 1, store.get("level", 0));
   initModels();
@@ -901,6 +937,7 @@
     setModel(menu.model);
   }
   openMenu(false);
+  if (FC.lessons) lesson = FC.lessons.mount("game", lessonApi, $("lesson-card")); // closes the menu itself
   FC.game = game; // handy for debugging from the console
   FC.controls = controls; // (and the target shape the panel, keys and touch controls write)
   requestAnimationFrame(frame);

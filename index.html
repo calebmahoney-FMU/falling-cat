@@ -75,8 +75,11 @@
       <button id="open-menu" class="small-btn" title="Back to the main menu">Menu <kbd>Esc</kbd></button>
     </div>
     <p class="tagline">You are the cat. Nothing to push against. Land on your feet.
+      <a href="lessons.html" class="results-link">Guided lessons →</a>
       <a href="physics.html" class="results-link">The physics behind it →</a>
       <a href="results.html" class="results-link">See the simulation results →</a></p>
+    <!-- Guided lesson (index.html?lesson=N): filled by js/lessons.js -->
+    <section id="lesson-card" hidden></section>
 
     <section>
       <label class="field">Model
@@ -236,6 +239,7 @@
     <div class="menu-row"><span class="menu-label">Mode</span><div id="menu-modes" class="menu-row"></div></div>
     <div class="menu-actions">
       <button id="menu-start" class="primary">Start <kbd>Enter</kbd></button>
+      <a href="lessons.html" class="menu-pill" style="border-color:var(--accent)"><b>Lessons</b></a>
       <button id="install-app" class="menu-pill" hidden title="Add Falling Cat to this device as an app">Install app</button>
       <a href="physics.html" class="menu-pill">The physics</a>
       <a href="model0.html" class="menu-pill" title="Two cylinders and one leg: inertia tensor and angular momentum, body by body">Model 0 (physics)</a>
@@ -261,6 +265,7 @@
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/touch.js"></script>
+<script src="js/lessons.js"></script>
 <script src="js/game.js"></script>
 <script>
 // Installable app: register the offline service worker (needs http(s), not file://),
