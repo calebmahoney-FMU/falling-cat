@@ -163,7 +163,7 @@ FC.lessons = (function () {
         needs a long fall. You get 21 m in slow motion. Follow the coach at the top: tuck the front legs, twist, swap the legs, untwist, repeat.`,
       setup(api) { api.start({ model: "A", mode: "free", inputs: { start: "upside", height: 21, speed: 0.15, "air-on": true, "coach-on": true } }); },
       steps: [
-        { text: `Drop (Space, or the Drop button) and turn over with tuck and turn. Land on your feet (feet within 45° of straight down).
+        { short: "Drop, then tuck and turn as the coach says. Land on your feet.", text: `Drop (Space, or the Drop button) and turn over with tuck and turn. Land on your feet (feet within 45° of straight down).
             Stuck? "Show me" plays it for you, but only your own landing counts.`,
           begin: beginLandings,
           status: (api, mem) => { const l = newLandings(api, mem).filter((x) => x.model === "A"); return l.length ? `last landing: feet ${f(l[l.length - 1].worst, 0)}° from down` : "not landed yet"; },
@@ -188,7 +188,7 @@ FC.lessons = (function () {
         its own axis, and because the halves are tilted their angular momenta can't cancel, so the whole body rolls the other way. You have 3 m.`,
       setup(api) { api.start({ model: "B", mode: "free", inputs: { start: "upside", height: 3, speed: 0.15, "air-on": true, "coach-on": true } }); },
       steps: [
-        { text: `Drop and right yourself by bending (W, or drag the bend pad out) and sweeping the bend around (A/D, or circle your thumb). Land on your feet.`,
+        { short: "Drop, drag the bend pad out and circle your thumb. Land on your feet.", text: `Drop and right yourself by bending (W, or drag the bend pad out) and sweeping the bend around (A/D, or circle your thumb). Land on your feet.`,
           begin: beginLandings,
           status: (api, mem) => { const l = newLandings(api, mem).filter((x) => x.model === "B"); return l.length ? `last landing: feet ${f(l[l.length - 1].worst, 0)}° from down` : "not landed yet"; },
           check(api, mem) { const ok = newLandings(api, mem).find((x) => x.model === "B" && !x.demo && x.worst < 45); if (ok) mem.l = ok; return !!ok; } },
@@ -211,10 +211,10 @@ FC.lessons = (function () {
         Here the cat rights itself (Watch mode); you compare landings.`,
       setup(api) { api.start({ model: "C", mode: "watch", inputs: { gravity: "earth", roll: 180, pitch: 0, delay: 60, strategy: "reflex", height: 3, "air-on": true } }); },
       steps: [
-        { text: `Drop model C (jointed legs) from 3 m: press Drop. Note the impact in the landing report.`,
+        { short: "Tap Drop: model C from 3 m. Note the impact.", text: `Drop model C (jointed legs) from 3 m: press Drop. Note the impact in the landing report.`,
           begin: beginLandings,
           check(api, mem) { const l = newLandings(api, mem).find((x) => x.model === "C" && x.mode === "watch" && Math.abs(x.height - 3) < 0.01); if (l) mem.c = l; return !!l; } },
-        { text: `Now switch to <b>model B</b> (rigid legs) with the Model selector in the panel, and drop again from the same 3 m.`,
+        { short: "Switch Model to B (panel below), then drop again.", text: `Now switch to <b>model B</b> (rigid legs) with the Model selector in the panel, and drop again from the same 3 m.`,
           begin: beginLandings,
           check(api, mem) { const l = newLandings(api, mem).find((x) => x.model === "B" && x.mode === "watch" && Math.abs(x.height - 3) < 0.01); if (l) mem.b = l; return !!l; } },
       ],
@@ -236,10 +236,10 @@ FC.lessons = (function () {
         impact. Compare the optimizer's move with the cat's reflex from a drop of only 0.5 m.`,
       setup(api) { api.start({ model: "D", mode: "watch", inputs: { gravity: "earth", roll: 180, pitch: 0, delay: 0, strategy: "reflex", height: 0.5, "air-on": true } }); },
       steps: [
-        { text: `Drop model D upside down from 0.5 m with the <b>Reflex</b> strategy (press Drop). Look at the landing: feet, spine, legs.`,
+        { short: "Tap Drop with the Reflex strategy. Look at feet, spine, legs.", text: `Drop model D upside down from 0.5 m with the <b>Reflex</b> strategy (press Drop). Look at the landing: feet, spine, legs.`,
           begin: beginLandings,
           check(api, mem) { const l = newLandings(api, mem).find((x) => x.model === "D" && !x.optimized && Math.abs(x.height - 0.5) < 0.01); if (l) mem.r = l; return !!l; } },
-        { text: `Set <b>Cat's strategy</b> to <b>Optimized</b> in the panel and drop again from 0.5 m.`,
+        { short: "Set Cat's strategy to Optimized (panel below), drop again.", text: `Set <b>Cat's strategy</b> to <b>Optimized</b> in the panel and drop again from 0.5 m.`,
           begin: beginLandings,
           check(api, mem) { const l = newLandings(api, mem).find((x) => x.model === "D" && x.optimized && Math.abs(x.height - 0.5) < 0.01); if (l) mem.o = l; return !!l; } },
       ],
@@ -306,11 +306,20 @@ FC.lessons = (function () {
     }
     render();
     let tickN = 0;
+    const plain = (html) => { const d = document.createElement("div"); d.innerHTML = html; return d.textContent.replace(/\s+/g, " ").trim(); };
     return {
       lesson: L,
+      // Compact view of where the lesson is, for a one-line strip on small screens.
+      chip() {
+        const s = L.steps[Math.min(step, L.steps.length - 1)];
+        return { id: L.id, title: L.title, step: Math.min(step + 1, L.steps.length), steps: L.steps.length, finished,
+          text: finished ? "Lesson complete: tap to read why it worked" : s.short || plain(s.text), status: !finished && s.status ? s.status(api, mem) : "" };
+      },
       tick() {
         if (finished || ++tickN % 4) return; // checks at ~15 Hz
         if (L.steps[step].check(api, mem)) {
+          // a short buzz on phones that allow it (setting: fallingcat.vibrate)
+          try { if (navigator.vibrate && JSON.parse(localStorage.getItem("fallingcat.vibrate") ?? "true")) navigator.vibrate(step + 1 >= L.steps.length ? [40, 60, 40] : 30); } catch {}
           step++;
           if (step >= L.steps.length) {
             finished = true;

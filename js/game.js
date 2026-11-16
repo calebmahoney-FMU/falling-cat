@@ -136,8 +136,10 @@
   const levelHeight = () => +(LEVELS[game.level].height * (game.model.challengeScale ?? 1)).toFixed(2);
 
   // Slow-motion factor: set by the level in Challenge, by the slider otherwise.
+  // On touch screens Challenge runs 20% slower: thumbs on a pad and buttons are slower than keys.
+  const TOUCH_TIME = 0.8;
   const simSpeed = () => (game.mode === "challenge"
-    ? Math.min(1, LEVELS[game.level].speed * (game.model.challengeSpeedScale ?? 1)) : +$("speed").value);
+    ? Math.min(1, LEVELS[game.level].speed * (game.model.challengeSpeedScale ?? 1) * (TOUCH ? TOUCH_TIME : 1)) : +$("speed").value);
 
   // ---------- speed bar over the scene ----------
   // Log-scale slider (1/50× .. 1×) so the slow end gets fine control; it drives the
@@ -434,6 +436,11 @@
       else text += ` (best ${best})`;
     }
     if (game.demo && game.mode !== "watch") text += "\n(computer demo: try it yourself!)";
+    // Phones: a buzz whose length grows with the impact (20 ms for a soft landing, up to 250 ms),
+    // and a double buzz for a bad landing.
+    if (navigator.vibrate && $("vibrate-on").checked) {
+      try { navigator.vibrate(success ? Math.round(Math.min(250, 15 + 1.6 * ab.impact)) : [120, 80, 160]); } catch {}
+    }
     // Landing record (the guided lessons check these). demo = the player pressed "Show me".
     game.landings.push({ n: game.landings.length + 1, model: game.model.id, mode: game.mode, demo: game.demo && game.mode !== "watch",
       optimized: !!game.schedPilot, height: game.height, worst, bend: bendDeg, legs, impact: ab.impact, v: ab.v, d: ab.d });
@@ -757,6 +764,8 @@
   $("speed").addEventListener("input", updateSetupUi);
   $("air-on").addEventListener("change", () => { if (game.phase !== "falling") reset(); });
   $("strategy").addEventListener("change", updateSetupUi);
+  $("vibrate-on").checked = store.get("vibrate", true);
+  $("vibrate-on").addEventListener("change", () => store.set("vibrate", $("vibrate-on").checked));
   $("explain-on").checked = store.get("explain", true);
   $("explain-on").addEventListener("change", () => store.set("explain", $("explain-on").checked));
   $("gravity").addEventListener("change", () => { if (game.phase !== "falling" && game.phase !== "float") reset(); else updateSetupUi(); });
@@ -840,8 +849,26 @@
     buildMenu();
   });
 
+  // ---------- phone: keep the screen awake while playing; Back opens the menu ----------
+  let wake = null;
+  async function keepAwake(on) {
+    try {
+      if (on && !wake && navigator.wakeLock && document.visibilityState === "visible") {
+        wake = await navigator.wakeLock.request("screen");
+        wake.addEventListener("release", () => (wake = null));
+      } else if (!on && wake) { await wake.release(); wake = null; }
+    } catch { wake = null; } // not supported, or refused (battery saver): the screen just dims as usual
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !menu.open) keepAwake(true); });
+  // Closing the menu adds a history entry, so the phone's Back button (or the browser's) returns to the
+  // menu instead of leaving the game; from the menu, Back leaves as usual.
+  addEventListener("popstate", () => { if (!menu.open) openMenu(true, true); });
+
   // sync: preselect what is being played now (false on first load: keep the saved choice).
-  function openMenu(sync = true) {
+  // fromBack: opened by the Back button (its history entry is already gone).
+  function openMenu(sync = true, fromBack = false) {
+    if (!fromBack && history.state && history.state.fcGame) history.back(); // drop our entry; popstate then finds the menu open
+    keepAwake(false);
     menu.open = true;
     hideBanner();
     menu.model = game.model.id;
@@ -857,6 +884,8 @@
 
   function closeMenu() {
     menu.open = false;
+    if (!(history.state && history.state.fcGame)) history.pushState({ fcGame: true }, "");
+    keepAwake(true);
     store.set("menuModel", menu.model);
     store.set("menuMode", menu.mode);
     document.body.classList.remove("menu-open");
@@ -903,9 +932,22 @@
     touchpad.show(game.shape);
     updateHud();
     updatePhysicsView();
-    if (lesson) lesson.tick();
+    if (lesson) { lesson.tick(); updateLessonChip(); }
+    renderer.adaptQuality(realDt);
     requestAnimationFrame(frame);
   }
+
+  // Small screens and touch: the current lesson step as one strip on the scene (the full card is in the panel below).
+  let chipHtml = "";
+  function updateLessonChip() {
+    const el = $("lesson-chip"), show = !menu.open && (TOUCH || innerWidth < 760);
+    el.hidden = !show;
+    if (!show) return;
+    const c = lesson.chip();
+    const html = `<b>Lesson ${c.id} · ${c.finished ? "done ✓" : `step ${c.step}/${c.steps}`}</b> ${c.text}${c.status ? ` <i>${c.status}</i>` : ""}`;
+    if (html !== chipHtml) { el.innerHTML = html; chipHtml = html; el.classList.toggle("finished", c.finished); }
+  }
+  $("lesson-chip").addEventListener("click", () => $("lesson-card").scrollIntoView({ behavior: "smooth", block: "start" }));
 
   // ---------- guided lessons (lessons.html → index.html?lesson=N) ----------
   // start(): pick the model and mode (as the menu does), then set panel inputs by id.

@@ -263,3 +263,18 @@ body.menu-open #touchpad { display: none !important; }
   border-right: 2px solid var(--muted); border-radius: 3px; color: var(--text); font-variant-numeric: tabular-nums; }
 #pv .mat span { text-align: right; min-width: 4.2em; }
 #pv .scroll { overflow-x: auto; }
+
+/* ---------- phone polish ---------- */
+/* No double-tap zoom on controls (taps register at once). */
+button, a, label, input, select, summary { touch-action: manipulation; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* Current lesson step on the scene (small screens): under the coach, right of the HUD; tap to open the full card. */
+#lesson-chip { position: absolute; top: 58px; left: 222px; right: 12px; z-index: 4; text-align: left; font-size: 13px; line-height: 1.35;
+  padding: 6px 10px; border-radius: 10px; background: rgba(18, 21, 28, 0.86); border: 1.5px solid var(--accent); color: var(--text);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+#lesson-chip[hidden] { display: none; }
+#lesson-chip b { color: var(--accent); }
+#lesson-chip i { color: var(--muted); font-style: normal; }
+#lesson-chip.finished { border-color: var(--good); }
+#lesson-chip.finished b { color: var(--good); }
+@media (max-width: 760px) { #lesson-chip { left: 170px; right: 8px; top: 64px; font-size: 12px; } }

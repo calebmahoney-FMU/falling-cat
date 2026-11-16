@@ -6,10 +6,15 @@ var FC = (globalThis.FC = globalThis.FC || {});
 FC.Renderer = class {
   constructor(container) {
     this.container = container;
-    const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: true }));
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Phones and tablets: fewer pixels (≤1.5× instead of 2×) and cheaper shadows; if frames
+    // still run slow, render() drops to 1× automatically (see adaptQuality).
+    this.touch = matchMedia("(hover: none), (pointer: coarse)").matches;
+    const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" }));
+    this.pixelRatio = Math.min(window.devicePixelRatio, this.touch ? 1.5 : 2);
+    renderer.setPixelRatio(this.pixelRatio);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = this.touch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+    this.slowFrames = 0;
     container.appendChild(renderer.domElement);
 
     const scene = (this.scene = new THREE.Scene());
@@ -23,7 +28,7 @@ FC.Renderer = class {
     const sun = new THREE.DirectionalLight(0xffffff, 0.75);
     sun.position.set(2, 6, 3);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.set(this.touch ? 512 : 1024, this.touch ? 512 : 1024);
     Object.assign(sun.shadow.camera, { left: -1.5, right: 1.5, top: 1.5, bottom: -1.5, near: 0.5, far: 15 });
     this.sun = sun;
     scene.add(sun, sun.target);
@@ -333,5 +338,17 @@ FC.Renderer = class {
     this.sun.position.set(target.x + 2, target.y + 6, target.z + 3);
     this.sun.target.position.copy(target);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  // Called each frame with the real frame time (s). If most of the last ~2 s ran
+  // slower than ~40 fps, render fewer pixels (once): smooth beats sharp on a slow phone.
+  adaptQuality(frameDt) {
+    if (this.pixelRatio <= 1) return;
+    this.slowFrames = Math.max(0, this.slowFrames + (frameDt > 0.025 ? 1 : -0.5));
+    if (this.slowFrames > 90) {
+      this.pixelRatio = 1;
+      this.renderer.setPixelRatio(1);
+      this.resize();
+    }
   }
 };
