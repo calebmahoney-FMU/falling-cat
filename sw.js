@@ -3,7 +3,7 @@
 // (the results page's 17 MB survival data, etc.) is saved the first time it loads.
 // Pages are served from the saved copy at once and refreshed in the background,
 // so a new deploy shows up on the next launch. Bump VERSION to force a full refresh.
-const VERSION = "falling-cat-20261115-204715";
+const VERSION = "falling-cat-20261115-204838";
 const THREE = "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js";
 const CORE = [
   "./", "./index.html", "./physics.html", "./results.html", "./model0.html", "./js/model0.js", "./lessons.html", "./js/lessons.js", "./manifest.webmanifest",
@@ -17,8 +17,10 @@ const CORE = [
   THREE,
 ];
 
+// Every download bypasses the browser's HTTP cache (GitHub Pages lets browsers reuse files for
+// 10 minutes), so a new version is saved as a complete, matching set of fresh files.
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(CORE.map((u) => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {
@@ -36,11 +38,15 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== location.origin && req.url !== THREE) return;
+  // Same-origin files are stored under their path without the query (?lesson=6 is the same page),
+  // and re-fetched with "no-cache" so the server is always asked whether there is a newer copy.
+  const same = url.origin === location.origin;
+  const key = same ? url.origin + url.pathname : req.url;
   e.respondWith(
     caches.open(VERSION).then(async (cache) => {
-      const hit = await cache.match(req, { ignoreSearch: true });
-      const fresh = fetch(req)
-        .then((res) => { if (res.ok) cache.put(req, res.clone()); return res; })
+      const hit = await cache.match(key);
+      const fresh = fetch(same ? new Request(key, { cache: "no-cache" }) : req)
+        .then((res) => { if (res.ok) cache.put(key, res.clone()); return res; })
         .catch(() => hit);
       if (hit) { e.waitUntil(fresh.catch(() => {})); return hit; }
       return fresh.then((res) => res || new Response("Offline", { status: 503 }));
