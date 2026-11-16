@@ -987,7 +987,8 @@
     useModel0(legMass) {
       const i = FC.models.findIndex((m) => m.id === "0");
       FC.models[i] = FC.makeModel0Game(legMass);
-      this.start({ model: "0", mode: "float" });
+      // 0.5× time: slow enough to watch the bodies move, quick enough that they keep up with the sliders
+      this.start({ model: "0", mode: "float", inputs: { speed: 0.5 } });
       if (game.model !== FC.models[i]) setModel("0"); // already Model 0 but another leg mass: rebuild
       lessonR0 = game.R.slice();
       // Broadside view (its long axis runs left-right on screen), a little further back on narrow screens.
