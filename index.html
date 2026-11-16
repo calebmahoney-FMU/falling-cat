@@ -229,6 +229,7 @@
       <button id="menu-start" class="primary">Start <kbd>Enter</kbd></button>
       <button id="install-app" class="menu-pill" hidden title="Add Falling Cat to this device as an app">Install app</button>
       <a href="physics.html" class="menu-pill">The physics</a>
+      <a href="model0.html" class="menu-pill" title="Two cylinders and one leg: inertia tensor and angular momentum, body by body">Model 0 (physics)</a>
       <a href="results.html" class="menu-pill">Simulation results</a>
     </div>
   </div>
@@ -254,7 +255,8 @@
 <script>
 // Installable app: register the offline service worker (needs http(s), not file://),
 // and show an "Install app" button when the browser offers installation.
-if ("serviceWorker" in navigator && location.protocol !== "file:")
+// Not on localhost, where it would serve stale copies while developing.
+if ("serviceWorker" in navigator && location.protocol !== "file:" && !["localhost", "127.0.0.1"].includes(location.hostname))
   navigator.serviceWorker.register("sw.js").catch((e) => console.warn("Service worker not registered:", e));
 let installPrompt = null;
 window.addEventListener("beforeinstallprompt", (e) => {

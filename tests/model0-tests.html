@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Model 0 physics tests</title>
+<style>
+  body { font: 14px/1.5 ui-monospace, Consolas, monospace; padding: 16px; background: #fff; color: #111; max-width: 1100px; }
+  .pass { color: #0a7a2f; font-weight: 700; } .fail { color: #c00; font-weight: 700; }
+  h2 { font: 600 18px system-ui, sans-serif; } td { padding: 2px 8px; vertical-align: top; } .d { color: #555; }
+</style>
+</head>
+<body>
+<h2>Model 0 (two cylinders + one leg): physics verification</h2>
+<p id="sum">Running…</p>
+<table id="out"></table>
+<script src="../js/math3.js"></script>
+<script src="../js/model0.js"></script>
+<script>
+const { v, mul, T, mv, addM, scaleM, rot, exp, log, I: eye, pointInertia } = FC.m3;
+const M0 = FC.model0, deg = Math.PI / 180;
+const rows = [];
+function report(name, ok, detail) { rows.push({ name, ok, detail }); }
+const normM = (A) => Math.sqrt(A.reduce((a, x) => a + x * x, 0));
+const relM = (A, B) => normM(A.map((x, i) => x - B[i])) / normM(B);
+const angleOf = (R) => v.norm(log(R));
+
+// ---------- 1, 2: cylinder inertia tensor formulas vs direct numerical integration over the solid ----------
+// Midpoint rule in cylindrical coordinates; each cell is a point mass carrying its exact share of the mass.
+function cloudCylinder(m, r, len, axis, nr = 40, nt = 72, nl = 60) {
+  const pts = [], vol = Math.PI * r * r * len;
+  for (let i = 0; i < nr; i++) {
+    const r0 = (i * r) / nr, r1 = ((i + 1) * r) / nr, rc = (2 / 3) * (r1 ** 3 - r0 ** 3) / (r1 ** 2 - r0 ** 2); // ring centroid radius
+    const ringArea = Math.PI * (r1 * r1 - r0 * r0) / nt;
+    for (let j = 0; j < nt; j++) {
+      const t = ((j + 0.5) * 2 * Math.PI) / nt;
+      for (let k = 0; k < nl; k++) {
+        // axial position: the cell's centre, nudged so a² equals the cell's exact mean of a² (centre² + Δ²/12)
+        const ac = -len / 2 + ((k + 0.5) * len) / nl, a = Math.sign(ac) * Math.sqrt(ac * ac + (len / nl) ** 2 / 12);
+        const dm = (m * ringArea * (len / nl)) / vol;
+        // second moment of an annulus cell about its centroid is small; use the cell's exact radial second moment
+        const r2 = (r1 ** 4 - r0 ** 4) / (2 * (r1 ** 2 - r0 ** 2)); // <ρ²> over the ring
+        const rr = Math.sqrt(r2);
+        const p = axis === 0 ? [a, rr * Math.cos(t), rr * Math.sin(t)] : [rr * Math.cos(t), rr * Math.sin(t), a];
+        pts.push({ m: dm, p });
+      }
+    }
+  }
+  return pts;
+}
+const tensorOf = (pts) => pts.reduce((J, q) => addM(J, pointInertia(q.m, q.p)), [0, 0, 0, 0, 0, 0, 0, 0, 0]);
+{
+  const c = M0.DEFAULTS.cyl, l = M0.DEFAULTS.leg;
+  const num1 = tensorOf(cloudCylinder(c.m, c.r, c.len, 0)), ana1 = M0.cylinderTensor(c.m, c.r, c.len, 0);
+  const e1 = relM(num1, ana1);
+  report("Cylinder tensor: ½mr² about the axis, m(3r²+ℓ²)/12 across, matches integration over the solid", e1 < 2e-4,
+    `relative difference ${e1.toExponential(2)}; analytic diag(${[ana1[0], ana1[4], ana1[8]].map((x) => (x * 1e4).toFixed(3)).join(", ")}) kg·cm²`);
+  const num3 = tensorOf(cloudCylinder(l.m, l.r, l.len, 2)), ana3 = M0.cylinderTensor(l.m, l.r, l.len, 2);
+  const e3 = relM(num3, ana3);
+  report("Leg tensor (symmetry axis z) matches integration over the solid", e3 < 2e-4, `relative difference ${e3.toExponential(2)}`);
+}
+
+// ---------- 3: whole-system tensor J vs a point cloud of all three solids ----------
+const model = M0.create();
+const randShape = (seed) => {
+  const r = (k) => { const x = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); };
+  return { beta: (20 + 100 * r(1)) * deg, phi: 360 * r(2) * deg, psi: (-150 + 300 * r(3)) * deg, alpha: (-80 + 160 * r(4)) * deg };
+};
+{
+  let worst = 0;
+  const c = M0.DEFAULTS.cyl, l = M0.DEFAULTS.leg;
+  const clouds = [cloudCylinder(c.m, c.r, c.len, 0, 16, 36, 30), cloudCylinder(c.m, c.r, c.len, 0, 16, 36, 30), cloudCylinder(l.m, l.r, l.len, 2, 8, 24, 30)];
+  for (let n = 1; n <= 4; n++) {
+    const s = randShape(n), conf = model.configuration(s);
+    const all = [];
+    conf.bodies.forEach((b, i) => clouds[i].forEach((q) => all.push({ m: q.m, p: v.sub(v.add(b.c, mv(b.R, q.p)), conf.cm) })));
+    // centre of mass of the cloud equals the analytic one
+    let cm = [0, 0, 0], M = 0; all.forEach((q) => { cm = v.add(cm, v.scale(q.p, q.m)); M += q.m; });
+    worst = Math.max(worst, relM(tensorOf(all), conf.J), v.norm(cm) / M / 0.1);
+  }
+  report("System tensor J = Σ[R_i Ib_i R_iᵀ + m_i(|r_i|²1 − r_i r_iᵀ)] matches a point cloud of all three solids (4 random shapes)", worst < 2e-3,
+    `worst relative difference ${worst.toExponential(2)} (cloud resolution limited)`);
+}
+
+// ---------- 4, 5: tensor properties and the eigen-solver ----------
+{
+  let okSym = true, okPD = true, okTri = true, worstEig = 0, worstOrtho = 0;
+  for (let n = 1; n <= 20; n++) {
+    const J = model.configuration(randShape(n)).J;
+    okSym = okSym && Math.abs(J[1] - J[3]) < 1e-15 && Math.abs(J[2] - J[6]) < 1e-15 && Math.abs(J[5] - J[7]) < 1e-15;
+    const { values, axes } = M0.eigenSym(J);
+    okPD = okPD && values[0] > 0;
+    okTri = okTri && values[0] + values[1] >= values[2] * (1 - 1e-12);
+    values.forEach((lam, i) => { worstEig = Math.max(worstEig, v.norm(v.sub(mv(J, axes[i]), v.scale(axes[i], lam))) / values[2]); });
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) worstOrtho = Math.max(worstOrtho, Math.abs(v.dot(axes[i], axes[j]) - (i === j ? 1 : 0)));
+  }
+  report("J is symmetric (J = Jᵀ) for every shape", okSym, "20 random shapes");
+  report("J is positive definite and its principal moments obey the triangle inequality I₁ + I₂ ≥ I₃", okPD && okTri, "20 random shapes");
+  report("Eigen-solver: J â = λ â with orthonormal principal axes", worstEig < 1e-12 && worstOrtho < 1e-12,
+    `max |J â − λ â|/λmax ${worstEig.toExponential(1)}, max |âᵢ·âⱼ − δᵢⱼ| ${worstOrtho.toExponential(1)}`);
+}
+
+// ---------- analytic body velocities (the connection) vs central differences ----------
+{
+  let worst = 0;
+  for (let n = 1; n <= 20; n++) {
+    const s = randShape(n), a = model.connection(s).cols, f = model.connectionFD(s).cols;
+    a.forEach((col, k) => {
+      const sc = Math.max(1e-3, v.norm(col.h));
+      worst = Math.max(worst, v.norm(v.sub(col.h, f[k].h)) / sc);
+      col.w.forEach((w, i) => (worst = Math.max(worst, v.norm(v.sub(w, f[k].w[i])), v.norm(v.sub(col.dr[i], f[k].dr[i])) / 0.1)));
+    });
+  }
+  report("Exact (analytic) body angular velocities, centre-of-mass velocities and h-columns agree with central differences", worst < 1e-8,
+    `max difference ${worst.toExponential(2)} (limited by the finite differences, 20 random shapes × 4 shape coordinates)`);
+}
+
+// ---------- shape paths: piecewise linear in time (constant ṡ on each segment) ----------
+// segs: [{to: {beta,...}, T}] from start s0. run() integrates with step dt (must divide each T).
+function run(m, s0, segs, dt, RF = eye(), check) {
+  let s = { ...s0 };
+  for (const seg of segs) {
+    const n = Math.round(seg.T / dt), sdot = {};
+    for (const k of M0.KEYS) sdot[k] = ((seg.to[k] ?? s[k]) - s[k]) / seg.T;
+    for (let i = 0; i < n; i++) {
+      const nx = m.step(RF, s, sdot, dt);
+      if (check) check(RF, s, nx.RF, nx.s, sdot);
+      RF = nx.RF; s = nx.s;
+    }
+  }
+  return { RF, s };
+}
+const straight = { beta: 0, phi: 0, psi: 0, alpha: 0 };
+
+// ---------- 6: Kane–Scher (no leg): exact roll per sweep ----------
+{
+  const ks = M0.create({ leg: { m: 0 } });
+  let worst = 0, worstAxis = 0, detail = [];
+  for (const bd of [30, 60, 90, 120]) {
+    const b = bd * deg;
+    const out = run(ks, straight, [{ to: { beta: b }, T: 0.064 }, { to: { phi: 2 * Math.PI }, T: 0.512 }, { to: { beta: 0 }, T: 0.064 }], 1e-3);
+    const theta = log(out.RF), ang = v.norm(theta), exact = Math.abs(M0.kaneScherRoll(ks.params.cyl, b));
+    const exactWrapped = exact % (2 * Math.PI), e = Math.min(Math.abs(ang - exactWrapped), Math.abs(2 * Math.PI - exactWrapped - ang));
+    worst = Math.max(worst, e);
+    worstAxis = Math.max(worstAxis, Math.hypot(theta[1], theta[2]) / ang);
+    detail.push(`${bd}°: ${(ang / deg).toFixed(6)}° vs exact ${(exact / deg).toFixed(6)}°`);
+  }
+  report("Kane–Scher exact result: one sweep of the bend direction turns the body by 2π(A cos b/(A cos²b + B sin²b) − 1)", worst < 1e-8 && worstAxis < 1e-8,
+    detail.join("; ") + ` (max error ${(worst / deg).toExponential(1)}°, rotation axis is the long axis to ${worstAxis.toExponential(1)})`);
+}
+
+// ---------- 7: coaxial twist (no leg, straight): exact ----------
+{
+  const ks = M0.create({ leg: { m: 0 } });
+  const out = run(ks, straight, [{ to: { psi: 90 * deg }, T: 0.25 }], 1e-3);
+  const th = log(out.RF);
+  report("Straight spine, no leg: twisting the front cylinder by ψ turns the back one by exactly −ψ/2 (A ω₁ + A ω₂ = 0 about the shared axis)",
+    Math.abs(th[0] + 45 * deg) < 1e-12 && Math.hypot(th[1], th[2]) < 1e-12, `back cylinder turned ${(th[0] / deg).toFixed(12)}° about x (exact −45°)`);
+}
+
+// ---------- 8: a pure bend (or any shape change that is undone along the same path) gives no net turn ----------
+{
+  const out = run(model, straight, [{ to: { beta: 90 * deg, alpha: 60 * deg, psi: 40 * deg }, T: 0.2 }, { to: straight, T: 0.2 }], 1e-3);
+  report("Going out and back along the same path in shape space gives no net rotation", angleOf(out.RF) < 1e-10,
+    `net rotation ${(angleOf(out.RF) / deg).toExponential(2)}°`);
+}
+
+// ---------- the test loop (uses all four shape coordinates) ----------
+const loop = [
+  { to: { beta: 70 * deg, alpha: 80 * deg }, T: 0.064 },
+  { to: { psi: 120 * deg }, T: 0.128 },
+  { to: { alpha: -40 * deg, phi: 90 * deg }, T: 0.128 },
+  { to: { psi: 0, phi: 360 * deg }, T: 0.256 },
+  { to: { beta: 0, alpha: 0, phi: 360 * deg }, T: 0.064 },
+];
+
+// ---------- 9: instantaneous L = Σ(I_i ω_i + m_i r_i × v_i) assembled body by body is zero; P = 0 ----------
+{
+  let worstL = 0, worstP = 0, worstKE = 0;
+  for (let n = 1; n <= 20; n++) {
+    const s = randShape(n), sdot = { beta: 2 * Math.sin(n), phi: 7 * Math.cos(n), psi: -3 * Math.sin(2 * n), alpha: 4 * Math.cos(3 * n) };
+    const st = model.state(s, sdot);
+    const scale = st.bodies.reduce((a, b) => a + v.norm(b.spin) + v.norm(b.orbital), 0);
+    worstL = Math.max(worstL, v.norm(st.L) / scale);
+    worstP = Math.max(worstP, v.norm(st.P) / st.bodies.reduce((a, b) => a + b.m * v.norm(b.vel), 0));
+    // Kinetic energy two ways: Σ ½(ω_i·I_i ω_i + m_i |v_i|²)  vs  T_shape − ½ h·J⁻¹h, with T_shape the energy of the shape change alone
+    const Tshape = st.bodies.reduce((a, b) => a + 0.5 * v.dot(b.w, mv(b.I, b.w)) + 0.5 * b.m * v.dot(b.dr, b.dr), 0);
+    const T2 = Tshape - 0.5 * v.dot(st.h, mv(FC.m3.inv(st.J), st.h));
+    worstKE = Math.max(worstKE, Math.abs(T2 - st.KE) / st.KE);
+  }
+  report("Total angular momentum assembled body by body (spin I_i ω_i + orbital m_i r_i × v_i) is zero", worstL < 1e-12, `max |L|/Σ|L_i| = ${worstL.toExponential(1)} (20 random states)`);
+  report("Total linear momentum P = Σ m_i v_i is zero (centre of mass at rest)", worstP < 1e-12, `max |P|/Σ m|v| = ${worstP.toExponential(1)}`);
+  report("Kinetic energy (a scalar) two ways agrees: Σ ½(ω_i·I_i ω_i + m_i v_i·v_i) = T_shape − ½ h·J⁻¹h", worstKE < 1e-12, `max relative difference ${worstKE.toExponential(1)}`);
+}
+
+// ---------- 10: independent measurement of L from the motion actually produced ----------
+{
+  const meas = (dt) => {
+    let worst = 0;
+    run(model, straight, loop, dt, eye(), (R0, s0, R1, s1) => {
+      const { L, scale } = model.measuredL(R0, s0, R1, s1, dt);
+      if (scale > 1e-9) worst = Math.max(worst, v.norm(L) / scale);
+    });
+    return worst;
+  };
+  // The measurement is a finite difference over one step, so it is only accurate to O(dt²):
+  // it should shrink 4× when dt halves, i.e. the true L (the dt → 0 limit) is zero.
+  const a = meas(1e-3), b = meas(5e-4), c = meas(2.5e-4);
+  report("World-frame L measured independently from the bodies' actual positions and orientations, step to step, → 0 as dt² (true L = 0)",
+    a / b > 3.8 && a / b < 4.2 && b / c > 3.8 && b / c < 4.2 && c < 3e-6,
+    `max |L|/Σ|L_i|: ${a.toExponential(2)}, ${b.toExponential(2)}, ${c.toExponential(2)} at dt = 1, 0.5, 0.25 ms (ratios ${(a / b).toFixed(3)}, ${(b / c).toFixed(3)}; exactly 4 means the residual is pure measurement error)`);
+}
+
+// ---------- 11: 4th-order convergence of the Magnus integrator ----------
+{
+  const ref = run(model, straight, loop, 6.25e-5).RF;
+  const err = [4e-3, 2e-3, 1e-3].map((dt) => angleOf(mul(T(ref), run(model, straight, loop, dt).RF)));
+  const orders = [Math.log2(err[0] / err[1]), Math.log2(err[1] / err[2])];
+  report("Rotation integrator converges at 4th order (error ∝ dt⁴)", orders.every((p) => p > 3.6 && p < 4.4),
+    `errors ${err.map((e) => (e / deg).toExponential(2) + "°").join(", ")} at dt = 4, 2, 1 ms; observed orders ${orders.map((p) => p.toFixed(2)).join(", ")}`);
+}
+
+// ---------- 12: geometric (speed-independent) and reversible; non-zero net rotation for a loop ----------
+{
+  const fwd = run(model, straight, loop, 2.5e-4).RF;
+  const slow = run(model, straight, loop.map((sg) => ({ ...sg, T: sg.T * 3 })), 2.5e-4 * 3).RF;
+  const dSpeed = angleOf(mul(T(fwd), slow));
+  report("A loop in shape space gives a net rotation even though L = 0 the whole time", angleOf(fwd) > 1 * deg, `net rotation ${(angleOf(fwd) / deg).toFixed(4)}° about (${v.unit(log(fwd)).map((x) => x.toFixed(3)).join(", ")})`);
+  report("The net rotation depends only on the path, not the speed (3× slower: same result)", dSpeed < 1e-9, `difference ${(dSpeed / deg).toExponential(1)}°`);
+  // reverse: go back along the loop's points in reverse order
+  const pts = [straight, ...loop.map((sg, i) => null)];
+  let s = { ...straight }; const waypoints = [s];
+  for (const sg of loop) { s = { ...s, ...sg.to }; waypoints.push(s); }
+  const back = [];
+  for (let i = loop.length - 1; i >= 0; i--) back.push({ to: waypoints[i], T: loop[i].T });
+  const there = run(model, straight, loop, 2.5e-4);
+  const andBack = run(model, there.s, back, 2.5e-4, there.RF).RF;
+  report("Running the same loop backwards undoes the rotation exactly", angleOf(andBack) < 1e-10, `net rotation after there-and-back ${(angleOf(andBack) / deg).toExponential(1)}°`);
+}
+
+// ---------- 13: at rest, no motion and no kinetic energy; shape changes do work (energy not conserved) ----------
+{
+  const st0 = model.state(randShape(3), { beta: 0, phi: 0, psi: 0, alpha: 0 });
+  const st1 = model.state(randShape(3), { beta: 1, phi: 0, psi: 0, alpha: 0 }), st2 = model.state(randShape(5), { beta: 1, phi: 0, psi: 0, alpha: 0 });
+  report("No shape change ⇒ Ω = 0 and kinetic energy 0; changing shape gives kinetic energy > 0 that depends on the shape (internal muscles do work, so energy is not conserved, unlike L)",
+    v.norm(st0.Omega) === 0 && st0.KE === 0 && st1.KE > 0 && Math.abs(st1.KE - st2.KE) > 1e-6, `T = ${st1.KE.toExponential(3)} J vs ${st2.KE.toExponential(3)} J at the same rate, different shapes`);
+}
+
+// ---------- render ----------
+const pass = rows.filter((r) => r.ok).length;
+document.getElementById("sum").innerHTML = `<span class="${pass === rows.length ? "pass" : "fail"}">${pass}/${rows.length} passed</span>`;
+document.getElementById("out").innerHTML = rows.map((r) =>
+  `<tr><td class="${r.ok ? "pass" : "fail"}">${r.ok ? "PASS" : "FAIL"}</td><td>${r.name}<div class="d">${r.detail}</div></td></tr>`).join("");
+window.results = { pass, total: rows.length, rows };
+</script>
+</body>
+</html>

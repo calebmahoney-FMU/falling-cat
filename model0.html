@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model 0 Physics</title>
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10); --code: #f0efea;
+    --b1: #e8833a; --b2: #2a78d6; --b3: #1baf7a; --om: #8a4fd6; --ok: #1baf7a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --code: #232321;
+      --b1: #f29a3a; --b2: #3987e5; --b3: #199e70; --om: #a77ff0; --ok: #2fc48a;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --code: #232321;
+    --b1: #f29a3a; --b2: #3987e5; --b3: #199e70; --om: #a77ff0; --ok: #2fc48a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  a { color: var(--b2); }
+  header { padding: 14px 16px 6px; max-width: 1400px; margin: 0 auto; }
+  header h1 { font-size: 24px; margin: 4px 0 2px; }
+  header p { margin: 0; color: var(--text-2); max-width: 900px; }
+  nav { display: flex; gap: 16px; font-size: 14px; flex-wrap: wrap; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 14px; padding: 10px 16px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .layout > * { min-width: 0; } /* wide tables scroll inside their cards instead of widening the page */
+  .viewer { position: sticky; top: 8px; align-self: start; }
+  @media (max-width: 900px) { .viewer { position: relative; top: 0; } }
+  #view { width: 100%; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; background: #101318; touch-action: none; position: relative; }
+  #view canvas { display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--text-2); margin: 8px 2px; align-items: center; }
+  .legend label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+  .sw { display: inline-block; width: 14px; height: 4px; border-radius: 2px; }
+  .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h2 { font-size: 15px; margin: 0 0 8px; }
+  .card .sub { font-size: 13px; color: var(--muted); margin: -4px 0 8px; }
+  .ctl { display: grid; grid-template-columns: 150px 1fr 120px; gap: 8px; align-items: center; margin: 4px 0; font-size: 14px; color: var(--text-2); }
+  .ctl output { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); font-size: 13px; }
+  @media (max-width: 520px) { .ctl { grid-template-columns: 1fr 110px; } .ctl input { grid-column: 1 / -1; grid-row: 2; } }
+  input[type=range] { width: 100%; accent-color: var(--b2); }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  button { font: inherit; font-size: 13px; padding: 6px 11px; border-radius: 8px; border: 1px solid var(--axis); background: var(--surface); color: var(--text); cursor: pointer; }
+  button:hover { border-color: var(--b2); }
+  button.on { border-color: var(--b2); background: color-mix(in srgb, var(--b2) 14%, transparent); }
+  .note { font-size: 13px; color: var(--muted); }
+  .result { margin-top: 8px; font-size: 14px; padding: 8px 10px; border-radius: 8px; background: var(--code); min-height: 1.6em; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  td, th { padding: 4px 6px; border-bottom: 1px solid var(--grid); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; }
+  td:first-child, th:first-child { text-align: left; }
+  .scroll { overflow-x: auto; }
+  .mat { display: inline-grid; grid-template-columns: repeat(3, auto); column-gap: 14px; row-gap: 1px; padding: 2px 10px;
+    border-left: 2px solid var(--text-2); border-right: 2px solid var(--text-2); border-radius: 4px; font-variant-numeric: tabular-nums; font-size: 13px; }
+  .mat span { text-align: right; min-width: 5.2em; }
+  .eqline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0; font-size: 14px; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .frame { display: inline-flex; gap: 4px; margin-left: 8px; }
+  /* Notation: scalars italic (var), vectors with an arrow (.vc), unit vectors with a hat (.uv), tensors bold upright sans (.tn). */
+  var { font-family: "Cambria Math", Georgia, serif; }
+  .vc { font: italic 400 1.05em "Cambria Math", Georgia, serif; display: inline-block; text-align: center; line-height: 1; padding-left: 0.08em; }
+  .vc::before { content: "\2192"; display: block; font: normal 400 0.8em/1 "Cambria Math", "Segoe UI Symbol", system-ui, sans-serif; height: 0.55em; margin-bottom: -0.02em; }
+  .uv { font: italic 400 1.05em "Cambria Math", Georgia, serif; }
+  .tn { font: 700 0.95em "Segoe UI", system-ui, sans-serif; }
+  article { max-width: 900px; margin: 10px auto 60px; padding: 0 16px; }
+  article h2 { font-size: 20px; margin: 34px 0 6px; }
+  article p, article li { color: var(--text-2); }
+  .eq { display: block; margin: 10px 0; padding: 10px 14px; background: var(--code); border-radius: 8px; color: var(--text);
+    font: 16px/1.6 "Cambria Math", "STIX Two Math", Georgia, serif; overflow-x: auto; }
+  .eq small { display: block; font: 13px/1.4 system-ui, sans-serif; color: var(--muted); margin-top: 4px; }
+  .notation { font-size: 14px; color: var(--muted); border-left: 3px solid var(--axis); padding: 2px 0 2px 10px; }
+</style>
+</head>
+<body>
+<header>
+  <nav><a href="index.html">← Falling Cat game</a><a href="physics.html">The physics (cat)</a><a href="tests/model0-tests.html">Verification tests</a></nav>
+  <h1>Model 0: two cylinders and one leg</h1>
+  <p>Not a cat: the simplest free-floating body that can turn itself. Change its shape and watch the inertia tensor, the angular
+    velocities and the angular momenta, body by body. The total angular momentum stays zero the whole time, yet the body turns.</p>
+  <p class="notation">Notation: scalars in italics (<var>m</var>, <var>β</var>); vectors with an arrow (<span class="vc">L</span>, <span class="vc">Ω</span>);
+    unit vectors with a hat (<span class="uv">x̂</span>); second-rank tensors in bold upright sans-serif (<b class="tn">J</b>, <b class="tn">I</b>).</p>
+</header>
+
+<div class="layout">
+  <div class="viewer">
+    <div id="view"></div>
+    <div class="legend">
+      <label><input type="checkbox" id="show-L" checked><span class="sw" style="background:var(--b1)"></span><span class="sw" style="background:var(--b2)"></span><span class="sw" style="background:var(--b3)"></span> each body's <span class="vc">L</span><sub><var>i</var></sub> (they add to <span class="vc">0</span>)</label>
+      <label><input type="checkbox" id="show-O" checked><span class="sw" style="background:var(--om)"></span> <span class="vc">Ω</span> (back cylinder)</label>
+      <label><input type="checkbox" id="show-P" checked><span class="sw" style="background:#9aa4b5"></span> principal axes of <b class="tn">J</b></label>
+      <label><input type="checkbox" id="show-F"> frame F</label>
+    </div>
+    <div class="note">Drag to turn the view, scroll or pinch to zoom. Bodies: <b style="color:var(--b1)">1 front cylinder</b>,
+      <b style="color:var(--b2)">2 back cylinder</b>, <b style="color:var(--b3)">3 leg</b>. White dot: the system's centre of mass (fixed).
+      Arrow lengths are rescaled live; <span id="arrow-scale"></span></div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2>Shape (what the body controls)</h2>
+      <div class="sub">Four scalar angles. Each slider sets a target; the joint moves toward it at a fixed rate.</div>
+      <div class="ctl"><span>Bend <var>β</var></span><input type="range" id="t-beta" min="0" max="120" step="1" value="0"><output id="o-beta"></output></div>
+      <div class="ctl"><span>Bend direction <var>φ</var></span><input type="range" id="t-phi" min="-360" max="720" step="1" value="0"><output id="o-phi"></output></div>
+      <div class="ctl"><span>Twist <var>ψ</var></span><input type="range" id="t-psi" min="-180" max="180" step="1" value="0"><output id="o-psi"></output></div>
+      <div class="ctl"><span>Leg angle <var>α</var></span><input type="range" id="t-alpha" min="-90" max="90" step="1" value="0"><output id="o-alpha"></output></div>
+      <div class="ctl"><span>Leg mass <var>m</var><sub>3</sub></span><input type="range" id="leg-m" min="0" max="1" step="0.05" value="0.3"><output id="o-legm"></output></div>
+      <div class="ctl"><span>Time scale</span><input type="range" id="speed" min="0.05" max="1" step="0.05" value="0.5"><output id="o-speed"></output></div>
+      <div class="btns">
+        <button id="b-straight">Straighten</button><button id="b-pause">Pause</button><button id="b-reorient">Reset orientation</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Experiments (loops in shape space)</h2>
+      <div class="sub">Each runs a sequence of shape targets that ends where it started, then reports the net rotation of the back cylinder.</div>
+      <div class="btns" id="experiments"></div>
+      <div class="result" id="exp-result">Pick an experiment.</div>
+    </div>
+
+    <div class="card">
+      <h2>Live quantities <span class="frame">components in
+        <button id="fr-F" class="on" title="Frame F: fixed to the back cylinder">frame F</button><button id="fr-W" title="Inertial frame, origin at the centre of mass">world</button></span></h2>
+      <div class="eqline"><span><span class="vc">Ω</span> =</span><span id="q-Omega"></span><span class="note">rad/s, angular velocity of the back cylinder (frame F)</span></div>
+      <div class="eqline"><span><span class="vc">h</span> =</span><span id="q-h"></span><span class="note">10⁻³ kg·m²/s, angular momentum of the shape change alone</span></div>
+      <div class="eqline"><span><span class="vc">L</span> = <b class="tn">J</b><span class="vc">Ω</span> + <span class="vc">h</span> =</span><span id="q-L"></span></div>
+      <div class="eqline"><span>independent check, |<span class="vc">L</span>| measured from the motion ÷ Σ|<span class="vc">L</span><sub><var>i</var></sub>| =</span><span id="q-Lmeas"></span></div>
+      <div class="eqline"><span><span class="vc">P</span> = Σ <var>m<sub>i</sub></var><span class="vc">v</span><sub><var>i</var></sub> =</span><span id="q-P"></span><span class="note">kg·m/s</span></div>
+      <div class="eqline"><span>Kinetic energy <var>T</var> =</span><span id="q-T"></span><span class="note">a scalar; not conserved (the joints do work)</span></div>
+      <div class="eqline"><span>Net rotation of the back cylinder since reset:</span><span id="q-net"></span></div>
+    </div>
+
+    <div class="card">
+      <h2>Inertia tensor of the whole body, <b class="tn">J</b> (about its centre of mass)</h2>
+      <div class="sub">10⁻⁴ kg·m² (= kg·cm²). It changes with shape, and in the world frame also as the body turns (<b class="tn">J</b><sub>world</sub> = <b class="tn">R</b><sub>F</sub><b class="tn">J</b><b class="tn">R</b><sub>F</sub><sup>T</sup>).</div>
+      <div class="eqline"><span><b class="tn">J</b> =</span><div class="mat" id="q-J"></div></div>
+      <div class="scroll"><table id="q-eig"></table></div>
+    </div>
+
+    <div class="card">
+      <h2>Body by body</h2>
+      <div class="sub">Centre-of-mass position <span class="vc">r</span><sub><var>i</var></sub> (cm, from the system's centre of mass), angular velocity
+        <span class="vc">ω</span><sub><var>i</var></sub> (rad/s), and angular momentum about the system's centre of mass split into spin
+        <b class="tn">I</b><sub><var>i</var></sub><span class="vc">ω</span><sub><var>i</var></sub> and orbital <var>m<sub>i</sub></var><span class="vc">r</span><sub><var>i</var></sub> × <span class="vc">v</span><sub><var>i</var></sub> (10⁻³ kg·m²/s).</div>
+      <div class="scroll"><table id="q-bodies"></table></div>
+      <div class="sub" style="margin-top:10px">Each body's own inertia tensor <b class="tn">I</b><sub><var>i</var></sub> about its own centre of mass, in the chosen frame (kg·cm²):</div>
+      <div id="q-Ii" class="scroll"></div>
+    </div>
+  </div>
+</div>
+
+<article id="explain">
+  <h2>The model</h2>
+  <p>Three rigid bodies: two identical uniform solid cylinders (mass <var>m</var> = 1.6 kg, radius <var>r</var> = 6 cm, length
+    <var>ℓ</var> = 22 cm) joined at a joint, and a leg, a uniform solid rod (0.3 kg by default, radius 1.2 cm, length 20 cm), hinged
+    under the front cylinder. Nothing outside acts on it. In free fall gravity pulls equally on every kilogram, so it exerts no
+    torque about the centre of mass and only moves the centre of mass, which separates out. We follow the motion about the centre of mass.</p>
+  <p>The reference frame F is fixed to the back cylinder (body 2), origin at the joint, <span class="uv">x̂</span> along its axis. The shape is
+    four <b>scalars</b>: the bend <var>β</var> (angle between the cylinder axes), the bend direction <var>φ</var>, the twist <var>ψ</var> of the front
+    cylinder about its own axis, and the leg angle <var>α</var>. For each body <var>i</var>, the shape fixes its rotation matrix
+    <b class="tn">R</b><sub><var>i</var></sub> (its own frame → F) and its centre of mass <span class="vc">c</span><sub><var>i</var></sub>:</p>
+  <span class="eq"><b class="tn">R</b><sub>1</sub> = <b class="tn">Rot</b>(<span class="uv">k̂</span>, <var>β</var>) <b class="tn">Rot</b>(<span class="uv">x̂</span>, <var>ψ</var>),
+    &nbsp; <span class="uv">k̂</span> = (0, −sin <var>φ</var>, cos <var>φ</var>), &nbsp; <b class="tn">R</b><sub>2</sub> = <b class="tn">1</b>,
+    &nbsp; <b class="tn">R</b><sub>3</sub> = <b class="tn">R</b><sub>1</sub> <b class="tn">Rot</b>(<span class="uv">ŷ</span>, −<var>α</var>)
+    <small>The front cylinder's axis tilts by β toward cos φ ŷ + sin φ ẑ; the leg swings forward by α about the front cylinder's ŷ axis.</small></span>
+
+  <h2>Inertia: from each body to the whole</h2>
+  <p>Each body has an inertia tensor about its own centre of mass, diagonal in its own frame. For a solid cylinder with its symmetry axis along <span class="uv">x̂</span>:</p>
+  <span class="eq"><b class="tn">I</b><sub>cyl</sub> = diag( ½<var>mr</var><sup>2</sup>, <var>m</var>(3<var>r</var><sup>2</sup> + <var>ℓ</var><sup>2</sup>)/12, <var>m</var>(3<var>r</var><sup>2</sup> + <var>ℓ</var><sup>2</sup>)/12 )</span>
+  <p>A tensor changes with the frame it is written in: in F it is <b class="tn">I</b><sub><var>i</var></sub> = <b class="tn">R</b><sub><var>i</var></sub> <b class="tn">I</b><sub>body,<var>i</var></sub> <b class="tn">R</b><sub><var>i</var></sub><sup>T</sup>.
+    Shifting it to the system's centre of mass adds the parallel-axis term, and summing gives the whole body's inertia tensor:</p>
+  <span class="eq"><b class="tn">J</b>(<var>s</var>) = Σ<sub><var>i</var></sub> [ <b class="tn">I</b><sub><var>i</var></sub> + <var>m<sub>i</sub></var> ( |<span class="vc">r</span><sub><var>i</var></sub>|<sup>2</sup> <b class="tn">1</b> − <span class="vc">r</span><sub><var>i</var></sub> <span class="vc">r</span><sub><var>i</var></sub><sup>T</sup> ) ],
+    &nbsp; <span class="vc">r</span><sub><var>i</var></sub> = <span class="vc">c</span><sub><var>i</var></sub> − <span class="vc">c</span><sub>cm</sub></span>
+  <p><b class="tn">J</b> is symmetric and positive definite. Its eigenvalues are the principal moments (scalars), and its eigenvectors the principal
+    axes. Watch them move as the body bends. The scalar moment about any axis <span class="uv">n̂</span> is <span class="uv">n̂</span>·<b class="tn">J</b><span class="uv">n̂</span>.</p>
+
+  <h2>Angular momentum</h2>
+  <p>Let <span class="vc">Ω</span> be the angular velocity of frame F (the back cylinder), and <span class="vc">w</span><sub><var>i</var></sub> the angular velocity of
+    body <var>i</var> relative to F, set by the shape rates. Body <var>i</var>'s angular velocity is <span class="vc">ω</span><sub><var>i</var></sub> = <span class="vc">Ω</span> + <span class="vc">w</span><sub><var>i</var></sub>,
+    and its centre of mass moves at <span class="vc">v</span><sub><var>i</var></sub> = <span class="vc">Ω</span> × <span class="vc">r</span><sub><var>i</var></sub> + d<span class="vc">r</span><sub><var>i</var></sub>/d<var>t</var>
+    relative to the system's centre of mass. The total angular momentum about the centre of mass is</p>
+  <span class="eq"><span class="vc">L</span> = Σ<sub><var>i</var></sub> [ <b class="tn">I</b><sub><var>i</var></sub><span class="vc">ω</span><sub><var>i</var></sub> + <var>m<sub>i</sub></var> <span class="vc">r</span><sub><var>i</var></sub> × <span class="vc">v</span><sub><var>i</var></sub> ]
+    = <b class="tn">J</b><span class="vc">Ω</span> + <span class="vc">h</span>,
+    &nbsp; <span class="vc">h</span> = Σ<sub><var>i</var></sub> [ <b class="tn">I</b><sub><var>i</var></sub><span class="vc">w</span><sub><var>i</var></sub> + <var>m<sub>i</sub></var> <span class="vc">r</span><sub><var>i</var></sub> × d<span class="vc">r</span><sub><var>i</var></sub>/d<var>t</var> ]
+    <small>spin part I_i ω_i plus orbital part m_i r_i × v_i, for every body</small></span>
+  <p>No external torque, so <span class="vc">L</span> is constant; starting from rest, <span class="vc">L</span> = <span class="vc">0</span>. That is three scalar equations, which fix the three components of <span class="vc">Ω</span>:</p>
+  <span class="eq"><span class="vc">Ω</span> = −<b class="tn">J</b><sup>−1</sup><span class="vc">h</span> = −<b class="tn">J</b>(<var>s</var>)<sup>−1</sup> <b class="tn">A</b>(<var>s</var>) <var>ṡ</var>
+    <small>h is linear in the four shape rates ṡ; A(s) is a 3×4 matrix (not a tensor: its columns are vectors, one per shape coordinate)</small></span>
+  <p>In the panel, the body-by-body angular momenta <span class="vc">L</span><sub><var>i</var></sub> are not zero, but they always add to <span class="vc">0</span>: when one body turns one way, the others must
+    carry the opposite angular momentum. Total linear momentum <span class="vc">P</span> is zero too, so the centre of mass stays put.</p>
+
+  <h2>Why it can still turn</h2>
+  <p>Integrating d<b class="tn">R</b><sub>F</sub>/d<var>t</var> = <b class="tn">R</b><sub>F</sub>[<span class="vc">Ω</span>]<sub>×</sub> gives the orientation. Because
+    <span class="vc">Ω</span> depends on the shape as well as on its rate, the turn produced by a change of shape depends on which shape you are in. Going out and back
+    along the same path cancels exactly. Going around a loop in shape space, where the way back differs from the way out, leaves a net rotation. The rotation does not
+    depend on how fast you go, only on the path. That's a geometric phase. Try the experiments. With the leg mass set to 0, the bend-and-sweep loop matches Kane and
+    Scher's exact formula, 2π(<var>A</var> cos <var>b</var> / (<var>A</var> cos<sup>2</sup><var>b</var> + <var>B</var> sin<sup>2</sup><var>b</var>) − 1) with <var>b</var> = <var>β</var>/2.</p>
+
+  <h2>Energy is different</h2>
+  <p>Kinetic energy, a scalar, <var>T</var> = Σ ½(<span class="vc">ω</span><sub><var>i</var></sub>·<b class="tn">I</b><sub><var>i</var></sub><span class="vc">ω</span><sub><var>i</var></sub> + <var>m<sub>i</sub></var><span class="vc">v</span><sub><var>i</var></sub>·<span class="vc">v</span><sub><var>i</var></sub>),
+    is <i>not</i> conserved. The joints (the muscles) do work to change the shape, and it drops to zero whenever the shape stops changing. Only momentum,
+    linear and angular, is conserved, because only external forces and torques could change it.</p>
+
+  <h2>How it is computed</h2>
+  <p>Every quantity on this page is computed from the definitions above in <code>js/model0.js</code>. The body velocities come from exact analytic derivatives
+    of <b class="tn">R</b><sub><var>i</var></sub> and <span class="vc">c</span><sub><var>i</var></sub>. <span class="vc">Ω</span> = −<b class="tn">J</b><sup>−1</sup><span class="vc">h</span> is solved at every step, and the orientation is integrated with a
+    4th-order Magnus method that keeps <b class="tn">R</b><sub>F</sub> an exact rotation. The <a href="tests/model0-tests.html">verification page</a> checks it against:</p>
+  <ul>
+    <li>the inertia tensors of the solids, integrated numerically</li>
+    <li>the exact Kane–Scher result and the exact coaxial-twist result</li>
+    <li>an independent measurement of <span class="vc">L</span> from the bodies' actual motion</li>
+    <li>4th-order convergence of the integrator</li>
+    <li>speed independence and reversibility</li>
+  </ul>
+</article>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="js/math3.js"></script>
+<script src="js/model0.js"></script>
+<script>
+(function () {
+  const { v, mul, T, mv, log, I: eye } = FC.m3;
+  const M0 = FC.model0, deg = Math.PI / 180;
+  const $ = (id) => document.getElementById(id);
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  // ---------- physics state ----------
+  let model = M0.create();
+  let s = model.neutral(), RF = eye(), RF0 = eye();
+  const target = model.neutral();
+  const RATE = { beta: 120 * deg, phi: 300 * deg, psi: 180 * deg, alpha: 180 * deg }; // rad per simulated second
+  let sdot = { beta: 0, phi: 0, psi: 0, alpha: 0 }, paused = false, frameW = false;
+  let lastMeas = null;
+  const H = 1e-3; // simulated seconds per step
+
+  let pending = 0; // simulated time owed, so slow time scales stay exact
+  function advance(dtSim) {
+    pending += dtSim;
+    const n = Math.floor(pending / H);
+    pending -= n * H;
+    for (let k = 0; k < n; k++) {
+      const rate = {};
+      for (const key of M0.KEYS) {
+        const d = target[key] - s[key], max = RATE[key] * H;
+        rate[key] = Math.max(-max, Math.min(max, d)) / H; // constant over the step: the path is exactly linear
+      }
+      const R0 = RF, s0 = s;
+      const nx = model.step(RF, s, rate, H);
+      RF = nx.RF; s = nx.s; sdot = rate;
+      if (M0.KEYS.some((key) => rate[key] !== 0)) lastMeas = model.measuredL(R0, s0, RF, s, H);
+      else lastMeas = null;
+      experimentTick();
+    }
+  }
+
+  // ---------- experiments ----------
+  const EXPERIMENTS = [
+    { name: "Bend and sweep (Kane–Scher)", steps: [{ beta: 60 }, { phi: 360 }, { beta: 0 }, { phi: 0, instant: true }],
+      text: "Bend 60°, sweep the bend direction once around, straighten." },
+    { name: "Twist out and back", steps: [{ psi: 120 }, { psi: 0 }], text: "Twist 120° and untwist along the same path: no net turn." },
+    { name: "Tuck and turn with the leg", steps: [{ alpha: 90 }, { psi: 120 }, { alpha: 0 }, { psi: 0 }],
+      text: "Fold the leg (front body light), twist, unfold it (front heavy), untwist." },
+    { name: "Bend and leg loop", steps: [{ beta: 60, phi: 270 }, { alpha: 80 }, { beta: 0 }, { alpha: 0 }, { phi: 0, instant: true }],
+      text: "Bend, fold the leg, straighten, unfold: a loop in the (β, α) plane." },
+  ];
+  // An experiment first straightens the body (i = −1), then re-labels φ to 0 (allowed only when
+  // β = 0, where φ has no effect on any body), records the orientation, and runs its steps.
+  let exp = null;
+  function startExperiment(e) {
+    exp = { e, i: -1, Rstart: null };
+    setTargets({ beta: 0, psi: 0, alpha: 0, phi: s.phi });
+    $("exp-result").textContent = `Straightening first…`;
+  }
+  function loadStep() {
+    const st = exp.e.steps[exp.i];
+    for (const k in st) if (k !== "instant") target[k] = st[k] * deg;
+    if (st.instant) { for (const k in st) if (k !== "instant") s[k] = st[k] * deg; } // φ re-labelled at β = 0: no body moves
+    syncSliders();
+  }
+  function experimentTick() {
+    if (!exp) return;
+    if (M0.KEYS.some((k) => Math.abs(target[k] - s[k]) > 1e-12)) return;
+    if (exp.i === -1) {
+      s = { ...s, phi: 0 }; target.phi = 0; // β = 0 here, so this moves nothing
+      exp.Rstart = RF; exp.i = 0;
+      $("exp-result").textContent = `Running: ${exp.e.text}`;
+      return loadStep();
+    }
+    exp.i++;
+    if (exp.i < exp.e.steps.length) return loadStep();
+    const Rnet = mul(RF, T(exp.Rstart)), th = log(Rnet), ang = v.norm(th);
+    let msg = `${exp.e.name}: net rotation ${(ang / deg).toFixed(4)}°` + (ang > 1e-9 ? ` about ${fmtV(v.unit(th), 3)} (world)` : "");
+    if (exp.e.name.startsWith("Bend and sweep") && model.params.leg.m === 0) {
+      const ks = Math.abs(M0.kaneScherRoll(model.params.cyl, 60 * deg)) % (2 * Math.PI);
+      msg += `. Kane–Scher exact: ${(Math.min(ks, 2 * Math.PI - ks) / deg).toFixed(4)}° ✓`;
+    } else if (exp.e.name.startsWith("Bend and sweep")) msg += ". (Set the leg mass to 0 to compare with the exact Kane–Scher formula.)";
+    $("exp-result").textContent = msg;
+    exp = null;
+  }
+
+  // ---------- controls ----------
+  const sliders = { beta: "t-beta", phi: "t-phi", psi: "t-psi", alpha: "t-alpha" };
+  function setTargets(t) { Object.assign(target, t); syncSliders(); }
+  function syncSliders() { for (const k in sliders) $(sliders[k]).value = Math.round(target[k] / deg); }
+  for (const k in sliders) $(sliders[k]).addEventListener("input", () => { exp = null; target[k] = +$(sliders[k]).value * deg; });
+  $("b-straight").addEventListener("click", () => { exp = null; setTargets({ beta: 0, psi: 0, alpha: 0 }); });
+  $("b-pause").addEventListener("click", () => { paused = !paused; $("b-pause").textContent = paused ? "Resume" : "Pause"; });
+  $("b-reorient").addEventListener("click", () => { RF = eye(); RF0 = eye(); });
+  $("leg-m").addEventListener("input", () => { model = M0.create({ leg: { m: +$("leg-m").value } }); });
+  $("fr-F").addEventListener("click", () => { frameW = false; $("fr-F").classList.add("on"); $("fr-W").classList.remove("on"); });
+  $("fr-W").addEventListener("click", () => { frameW = true; $("fr-W").classList.add("on"); $("fr-F").classList.remove("on"); });
+  $("experiments").innerHTML = EXPERIMENTS.map((e, i) => `<button data-i="${i}" title="${e.text}">${e.name}</button>`).join("");
+  $("experiments").addEventListener("click", (ev) => { const b = ev.target.closest("button"); if (b) startExperiment(EXPERIMENTS[+b.dataset.i]); });
+
+  // ---------- formatting ----------
+  const n3 = (x, d = 3) => { const y = Math.abs(x) < 5e-13 ? 0 : x; return (y >= 0 ? " " : "") + y.toFixed(d); };
+  const fmtV = (a, d = 3, k = 1) => `(${a.map((x) => n3(x * k, d)).join(", ")})`;
+  const inFrame = (a) => (frameW ? mv(RF, a) : a);
+  const tInFrame = (A) => (frameW ? mul(mul(RF, A), T(RF)) : A);
+  const vecCell = (a, k = 1, d = 3) => fmtV(inFrame(a), d, k);
+
+  // ---------- 3D view ----------
+  const host = $("view");
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+  host.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, 4 / 3, 0.01, 50);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 0.9));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.7); sun.position.set(2, 3, 2); scene.add(sun);
+  // Physics z points up on screen: the whole physics world sits in a group turned −90° about x.
+  const world = new THREE.Group(); world.rotation.x = -Math.PI / 2; scene.add(world);
+  const grid = new THREE.GridHelper(1.6, 16, 0x3a4250, 0x262c36); grid.position.y = -0.35; scene.add(grid);
+  const colorOf = (n) => new THREE.Color(css(n) || "#888");
+  function cylMesh(r, len, axis, color) {
+    const g = new THREE.CylinderGeometry(r, r, len, 40);
+    if (axis === 0) g.rotateZ(-Math.PI / 2); else g.rotateX(Math.PI / 2); // three's cylinders run along y
+    return new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05 }));
+  }
+  let meshes = [];
+  function buildMeshes() {
+    meshes.forEach((m) => world.remove(m));
+    const { cyl, leg } = model.params;
+    meshes = [cylMesh(cyl.r, cyl.len, 0, colorOf("--b1")), cylMesh(cyl.r, cyl.len, 0, colorOf("--b2")), cylMesh(leg.r, leg.len, 2, colorOf("--b3"))];
+    meshes.forEach((m) => { m.matrixAutoUpdate = false; world.add(m); });
+  }
+  buildMeshes();
+  const cmDot = new THREE.Mesh(new THREE.SphereGeometry(0.008, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  world.add(cmDot);
+  const arrow = (color) => { const a = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.1, color, 0.03, 0.018); world.add(a); return a; };
+  const Larrows = [arrow(colorOf("--b1")), arrow(colorOf("--b2")), arrow(colorOf("--b3"))];
+  const Oarrow = arrow(colorOf("--om"));
+  const paxes = [0, 1, 2].map(() => { const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0x9aa4b5, dashSize: 0.015, gapSize: 0.01 })); world.add(l); return l; });
+  const triad = new THREE.AxesHelper(0.12); world.add(triad); triad.matrixAutoUpdate = false;
+  const orbit = { theta: 0.7, phi: 1.15, dist: 1.15 };
+  function placeCamera() {
+    camera.position.set(orbit.dist * Math.sin(orbit.phi) * Math.sin(orbit.theta), orbit.dist * Math.cos(orbit.phi), orbit.dist * Math.sin(orbit.phi) * Math.cos(orbit.theta));
+    camera.lookAt(0, 0, 0);
+  }
+  { // drag to orbit, wheel / pinch to zoom
+    let drag = null; const pts = new Map();
+    host.addEventListener("pointerdown", (e) => { pts.set(e.pointerId, [e.clientX, e.clientY]); drag = [e.clientX, e.clientY]; try { host.setPointerCapture(e.pointerId); } catch {} });
+    host.addEventListener("pointermove", (e) => {
+      if (!pts.has(e.pointerId)) return;
+      const prev = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        if (drag.pinch) orbit.dist = Math.min(4, Math.max(0.4, orbit.dist * drag.pinch / d)); drag.pinch = d; return; }
+      orbit.theta -= (e.clientX - prev[0]) * 0.008; orbit.phi = Math.min(3.0, Math.max(0.15, orbit.phi - (e.clientY - prev[1]) * 0.008));
+    });
+    const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2 && drag) drag.pinch = null; };
+    host.addEventListener("pointerup", up); host.addEventListener("pointercancel", up);
+    host.addEventListener("wheel", (e) => { e.preventDefault(); orbit.dist = Math.min(4, Math.max(0.4, orbit.dist * Math.exp(e.deltaY * 0.001))); }, { passive: false });
+  }
+  function resize() { const w = host.clientWidth, h = host.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+  new ResizeObserver(resize).observe(host); resize();
+  const m4 = (R, p) => new THREE.Matrix4().set(R[0], R[1], R[2], p[0], R[3], R[4], R[5], p[1], R[6], R[7], R[8], p[2], 0, 0, 0, 1);
+  let Lmax = 1e-9, Omax = 1e-9;
+  function setArrow(a, vec, scale, show) {
+    const len = v.norm(vec) * scale;
+    a.visible = show && len > 0.004;
+    if (!a.visible) return;
+    a.setDirection(new THREE.Vector3(...v.unit(vec)));
+    a.setLength(len, Math.min(0.03, len * 0.35), Math.min(0.018, len * 0.22));
+  }
+
+  // ---------- readouts ----------
+  function readouts(st) {
+    $("o-beta").textContent = `${(s.beta / deg).toFixed(1)}° → ${(target.beta / deg).toFixed(0)}°`;
+    $("o-phi").textContent = `${(s.phi / deg).toFixed(1)}° → ${(target.phi / deg).toFixed(0)}°`;
+    $("o-psi").textContent = `${(s.psi / deg).toFixed(1)}° → ${(target.psi / deg).toFixed(0)}°`;
+    $("o-alpha").textContent = `${(s.alpha / deg).toFixed(1)}° → ${(target.alpha / deg).toFixed(0)}°`;
+    $("o-legm").textContent = `${model.params.leg.m.toFixed(2)} kg`;
+    $("o-speed").textContent = `${(+$("speed").value).toFixed(2)}×`;
+    $("q-Omega").textContent = vecCell(st.Omega, 1, 3);
+    $("q-h").textContent = vecCell(st.h, 1e3, 3);
+    $("q-L").innerHTML = `${vecCell(st.L, 1e3, 3)} <span class="note">(10⁻³ kg·m²/s)</span>`;
+    const scale = st.bodies.reduce((a, b) => a + v.norm(b.spin) + v.norm(b.orbital), 0);
+    $("q-Lmeas").innerHTML = lastMeas ? `${(v.norm(lastMeas.L) / lastMeas.scale).toExponential(1)} <span class="note">(finite-difference error ∝ dt²; the solver's own |L| ÷ Σ|L_i| = ${(scale ? v.norm(st.L) / scale : 0).toExponential(0)})</span>` : `<span class="note">shape not changing: nothing moves</span>`;
+    $("q-P").textContent = vecCell(st.P, 1, 3);
+    $("q-T").textContent = `${(st.KE * 1e3).toFixed(4)} mJ`;
+    const th = log(mul(RF, T(RF0))), ang = v.norm(th);
+    $("q-net").textContent = `${(ang / deg).toFixed(3)}°` + (ang > 1e-6 ? ` about ${fmtV(v.unit(th), 3)} (world)` : "");
+    // J and its principal moments / axes
+    const J = tInFrame(st.J);
+    $("q-J").innerHTML = J.map((x) => `<span>${n3(x * 1e4, 3)}</span>`).join("");
+    const eig = M0.eigenSym(J);
+    $("q-eig").innerHTML = `<tr><th>principal moment</th><th>value (kg·cm²)</th><th>principal axis</th></tr>` +
+      eig.values.map((lam, i) => `<tr><td><var>J</var><sub>${i + 1}</sub></td><td>${(lam * 1e4).toFixed(3)}</td><td>${fmtV(eig.axes[i], 3)}</td></tr>`).join("");
+    // bodies
+    const rows = st.bodies.map((b, i) => `<tr><td style="color:var(--b${i + 1})">${i + 1} ${b.name}</td><td>${b.m.toFixed(2)}</td><td>${vecCell(b.r, 100, 2)}</td>
+      <td>${vecCell(b.omega, 1, 3)}</td><td>${vecCell(b.spin, 1e3, 3)}</td><td>${vecCell(b.orbital, 1e3, 3)}</td><td>${vecCell(b.L, 1e3, 3)}</td></tr>`).join("");
+    $("q-bodies").innerHTML = `<tr><th>body</th><th><var>m</var> (kg)</th><th><span class="vc">r</span><sub><var>i</var></sub></th><th><span class="vc">ω</span><sub><var>i</var></sub></th>
+      <th><b class="tn">I</b><sub><var>i</var></sub><span class="vc">ω</span><sub><var>i</var></sub></th><th><var>m<sub>i</sub></var><span class="vc">r</span><sub><var>i</var></sub>×<span class="vc">v</span><sub><var>i</var></sub></th><th><span class="vc">L</span><sub><var>i</var></sub></th></tr>` + rows +
+      `<tr><td><b>sum</b></td><td>${st.bodies.reduce((a, b) => a + b.m, 0).toFixed(2)}</td><td>${vecCell(st.bodies.reduce((a, b) => v.add(a, v.scale(b.r, b.m)), [0, 0, 0]), 100, 2)} <span class="note">(Σ<var>m</var><span class="vc">r</span>)</span></td><td></td><td></td><td></td><td><b>${vecCell(st.L, 1e3, 3)}</b></td></tr>`;
+    $("q-Ii").innerHTML = st.bodies.map((b, i) => `<div class="eqline"><span style="color:var(--b${i + 1})"><b class="tn">I</b><sub>${i + 1}</sub> =</span><div class="mat">${tInFrame(b.I).map((x) => `<span>${n3(x * 1e4, 3)}</span>`).join("")}</div>
+      <span class="note">principal (own frame): ${[b.Ib[0], b.Ib[4], b.Ib[8]].map((x) => (x * 1e4).toFixed(3)).join(", ")}</span></div>`).join("");
+  }
+
+  // ---------- main loop ----------
+  let last = performance.now(), uiTick = 0;
+  function frame(now) {
+    const dtReal = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!paused) advance(dtReal * +$("speed").value);
+    const st = model.state(s, paused ? { beta: 0, phi: 0, psi: 0, alpha: 0 } : sdot);
+    // place bodies (world frame, centre of mass at the origin)
+    st.bodies.forEach((b, i) => meshes[i].matrix.copy(m4(mul(RF, b.R), mv(RF, b.r))));
+    const joint = mv(RF, v.scale(st.conf.cm, -1));
+    triad.matrix.copy(m4(RF, joint)); triad.visible = $("show-F").checked;
+    // arrows: lengths rescaled to the recent largest value (decaying), so they stay readable
+    const Ls = st.bodies.map((b) => mv(RF, b.L)), Om = mv(RF, st.Omega);
+    Lmax = Math.max(Lmax * 0.995, ...Ls.map(v.norm), 1e-9); Omax = Math.max(Omax * 0.995, v.norm(Om), 1e-9);
+    Ls.forEach((Lw, i) => setArrow(Larrows[i], Lw, 0.3 / Lmax, $("show-L").checked));
+    setArrow(Oarrow, Om, 0.3 / Omax, $("show-O").checked);
+    const eig = M0.eigenSym(mul(mul(RF, st.J), T(RF)));
+    paxes.forEach((l, i) => { const a = v.scale(eig.axes[i], 0.32); l.geometry.setFromPoints([new THREE.Vector3(...v.scale(a, -1)), new THREE.Vector3(...a)]); l.computeLineDistances(); l.visible = $("show-P").checked; });
+    $("arrow-scale").textContent = `0.3 m of arrow = ${(Lmax * 1e3).toFixed(2)}×10⁻³ kg·m²/s for L, ${Omax.toFixed(2)} rad/s for Ω.`;
+    placeCamera();
+    renderer.render(scene, camera);
+    if (++uiTick % 3 === 0) readouts(st); // tables update at ~20 Hz
+    requestAnimationFrame(frame);
+  }
+  syncSliders();
+  requestAnimationFrame(frame);
+  window.M0page = { get s() { return s; }, get RF() { return RF; }, target, startExperiment, EXPERIMENTS, get model() { return model; } }; // for debugging/tests
+})();
+</script>
+</body>
+</html>
