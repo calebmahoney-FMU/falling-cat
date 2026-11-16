@@ -1068,7 +1068,10 @@
     $("model-select").value = menu.model;
     setModel(menu.model);
   }
-  openMenu(false);
+  // After a reload the browser keeps our old "in game" history entry: clear it rather than going back
+  // (going back would leave the page or reopen the menu over whatever starts next).
+  if (history.state && history.state.fcGame) history.replaceState(null, "");
+  openMenu(false, true);
   // Links into the course: index.html?lessons opens the Lessons screen, ?lesson=N starts lesson N.
   const qs = new URLSearchParams(location.search);
   if (qs.has("lesson")) startLesson(+qs.get("lesson"));
