@@ -955,8 +955,9 @@
   // Model 0: an arrow for each body's angular momentum L_i (world frame), from the body's centre of mass.
   // They always add to zero: when one body turns one way, the others carry the opposite angular momentum.
   const BODY_COLORS = [0xe8833a, 0x2a78d6, 0x1baf7a];
+  let momentumArrows = false; // switched on by the lessons that are about angular momentum
   function updateMomentumArrows() {
-    if (menu.open || game.model.kind !== "model0") return renderer.setVectors(null);
+    if (menu.open || game.model.kind !== "model0" || !momentumArrows) return renderer.setVectors(null);
     const st = FC.physics.state(game.model, game.shape, game.phase === "float" ? game.sdot || {} : {});
     renderer.setVectors(st.bodies.map((b, i) => ({ v: mv(game.R, b.L), color: BODY_COLORS[i] })));
   }
@@ -997,6 +998,18 @@
     get s() { return game.shape; },
     get st() { return FC.physics.state(game.model, game.shape, game.phase === "float" ? game.sdot || {} : {}); },
     net: () => FC.m3.log(FC.m3.mul(game.R, FC.m3.T(lessonR0))), // rotation of the back cylinder since the start (world frame)
+    // a point given in the body (cat) frame → world: pos + R (p − centre of mass)
+    toWorld(p) {
+      const com = FC.physics.configuration(game.model, game.shape).com;
+      return v.add(game.pos, mv(game.R, v.sub(p, com)));
+    },
+    // visual aids on the scene (no effect on the physics)
+    fx: {
+      ghost: (on) => renderer.setGhost(on), line: (a, b) => renderer.setLine(a, b),
+      glow: (i) => renderer.setGlow(i), ring: (on) => renderer.setRing(on),
+      arrows: (on) => (momentumArrows = !!on),
+      clear: () => { renderer.clearFx(); momentumArrows = false; },
+    },
   };
   let lesson = null;
 
@@ -1009,7 +1022,7 @@
       next: (n) => startLesson(n),
       home: () => openLessonsHome(),
       exit: () => { endLesson(); openMenu(); },
-    });
+    }, $("lesson-viz"));
     if (!lesson) endLesson();
     // Model 0 lessons: the panel shows only Model 0's controls (no cat modes, drop settings or Drop button).
     document.body.classList.toggle("lesson-model0", !!lesson && game.model.kind === "model0");

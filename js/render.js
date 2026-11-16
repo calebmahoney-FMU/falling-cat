@@ -358,6 +358,80 @@ FC.Renderer = class {
     this.cat = { root, kind: "model0", meshes, joint, model };
   }
 
+  // ---------- lesson effects (visual aids only; nothing here affects the physics) ----------
+  // ghost: a faint copy of the body where it is now, left behind as a reference ("where it started").
+  setGhost(on) {
+    if (this.ghost) { this.scene.remove(this.ghost); this.ghost = null; }
+    // The copy is taken on the next updateCat, once the body has been placed (a new body starts at the origin).
+    this.ghostPending = !!on;
+  }
+  makeGhost() {
+    this.ghostPending = false;
+    if (!this.cat) return;
+    // A light-blue see-through shell, a touch larger than the body so it shows even where they overlap.
+    const mat = new THREE.MeshBasicMaterial({ color: 0x9fd4ff, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.BackSide });
+    const g = this.cat.root.clone(true);
+    const grow = new THREE.Matrix4().makeScale(1.06, 1.06, 1.06);
+    g.traverse((o) => {
+      if (o.isMesh) {
+        o.material = mat; o.castShadow = false;
+        // meshes placed by a hand-set matrix (Model 0) scale that matrix; the others their scale property
+        if (o.matrixAutoUpdate) o.scale.multiplyScalar(1.06); else o.matrix.multiply(grow);
+      } else if (o.isLine) o.visible = false;
+    });
+    this.ghost = g;
+    this.scene.add(g);
+  }
+  // line: a dashed line between two world points (e.g. the leg's distance from the axis), or null to hide.
+  setLine(a, b) {
+    if (!this.fxLine) {
+      const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      this.fxLine = new THREE.Line(geo, new THREE.LineDashedMaterial({ color: 0xfff0a0, dashSize: 0.02, gapSize: 0.01, depthTest: false, transparent: true }));
+      this.fxLine.renderOrder = 11;
+      this.scene.add(this.fxLine);
+    }
+    this.fxLine.visible = !!a;
+    if (!a) return;
+    this.fxLine.geometry.setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]);
+    this.fxLine.computeLineDistances();
+  }
+  // glow: a soft halo around one body segment of a cat (index into its segments), or null.
+  setGlow(i) {
+    if (!this.cat || this.cat.kind === "model0") return;
+    this.cat.glows = this.cat.glows || [];
+    this.cat.segs.forEach((seg, k) => {
+      let h = this.cat.glows[k];
+      if (!h && k === i) {
+        const P = this.cat.model.params, sg = this.cat.model.geometry(FC.sim.neutral(this.cat.model))[k];
+        const geo = new THREE.CylinderGeometry(P.radius * 1.35, P.radius * 1.35, sg.len * 1.08, 24);
+        geo.rotateZ(-Math.PI / 2);
+        h = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending }));
+        h.position.x = (sg.fwd * sg.len) / 2;
+        seg.add(h);
+        this.cat.glows[k] = h;
+      }
+      if (h) h.visible = k === i;
+    });
+  }
+  // ring: a circle around the spine joint, square to the body, with a dot where the spine bends toward
+  // (bend direction 0 = belly side). Shows the sweep of bend and twist. On or off.
+  setRing(on) {
+    if (!this.cat || this.cat.kind === "model0") return;
+    if (!this.cat.ring && on) {
+      const g = new THREE.Group();
+      g.matrixAutoUpdate = false;
+      const torus = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.004, 8, 64), new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0.8, depthTest: false }));
+      torus.rotation.y = Math.PI / 2; // ring in the cat's y-z plane, around its long axis
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.016, 12, 10), new THREE.MeshBasicMaterial({ color: 0xffd36b, depthTest: false }));
+      torus.renderOrder = dot.renderOrder = 12;
+      g.add(torus, dot);
+      this.cat.root.add(g);
+      this.cat.ring = { g, dot };
+    }
+    if (this.cat.ring) this.cat.ring.g.visible = !!on;
+  }
+  clearFx() { this.setGhost(false); this.setLine(null); this.setGlow(null); this.setRing(false); }
+
   // Arrows from the body's centre of mass (world-frame vectors), rescaled so the largest recent one is
   // about 0.35 m long. list: [{ v: [x, y, z], color }] or null to hide.
   setVectors(list) {
@@ -539,10 +613,17 @@ FC.Renderer = class {
         this.cat.meshes[i].matrix.set(S[0], S[1], S[2], o[0], S[3], S[4], S[5], o[1], S[6], S[7], S[8], o[2], 0, 0, 0, 1);
       });
       this.cat.joint.matrix.makeTranslation(-com[0], -com[1], -com[2]); // the joint is the frame's origin
+      if (this.ghostPending) this.makeGhost();
       return;
     }
 
     const geo = model.geometry(shape);
+    if (this.cat.ring && this.cat.ring.g.visible) {
+      // the joint is the segments' origin; dot at the bend direction (0 = toward the belly, +90° = cat's left)
+      this.cat.ring.g.matrix.makeTranslation(-com[0], -com[1], -com[2]);
+      const d = shape.dir || 0;
+      this.cat.ring.dot.position.set(0, 0.13 * Math.sin(d), -0.13 * Math.cos(d));
+    }
     const up = new THREE.Vector3(0, 1, 0);
     let li = 0;
     geo.forEach((seg, i) => {
@@ -563,6 +644,7 @@ FC.Renderer = class {
         paw.position.copy(pts[pts.length - 1]);
       }
     });
+    if (this.ghostPending) this.makeGhost();
   }
 
   setTargetY(y, smooth) {

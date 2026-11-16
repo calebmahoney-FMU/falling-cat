@@ -338,3 +338,47 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .menu-pill[hidden] { display: none; }
 /* Model 0 lessons: hide the cat-only parts of the panel (model picker, modes, drop settings, Drop). */
 body.lesson-model0 #panel section:has(#model-select), body.lesson-model0 #panel section:has(#mode-seg) { display: none; }
+
+/* ---------- lessons: short card, and the live visual on the scene ---------- */
+.lc-goal { margin: 6px 0 2px; font-size: 14px; font-weight: 600; color: var(--text); }
+#lesson-card .done-box p { font-size: 13.5px; }
+.lc-math { display: inline-block; margin-top: 2px; color: var(--accent); font-size: 13px; }
+body.in-lesson #narrator { display: none !important; } /* the lesson card does the explaining */
+#lesson-viz { position: absolute; left: 12px; bottom: 84px; z-index: 5; width: 270px; padding: 9px 11px; border-radius: 12px;
+  background: rgba(18, 21, 28, 0.88); border: 1px solid var(--line); backdrop-filter: blur(4px); font-size: 12px; color: var(--muted); }
+#lesson-viz[hidden] { display: none; }
+body.menu-open #lesson-viz { display: none; }
+.lv-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
+.lv-note { margin-top: 4px; color: #c9d0dc; }
+.lv-note b, .lv-big { color: var(--text); }
+.lv-meter { height: 12px; margin-top: 5px; border-radius: 6px; background: var(--panel-2); overflow: hidden; }
+.lv-meter div { height: 100%; background: linear-gradient(90deg, #ffd36b, #e8833a); transition: width 0.15s; }
+.lv-bal { position: relative; height: 14px; margin-top: 6px; border-radius: 7px; background: var(--panel-2); }
+.lv-bal::before { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--muted); }
+.lv-bal i { position: absolute; top: 2px; bottom: 2px; border-radius: 5px; }
+.lv-bal span { position: absolute; left: 6px; top: -1px; font-size: 10px; color: var(--muted); }
+.lv-dial { display: flex; align-items: center; gap: 10px; }
+.lv-big { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.lv-bars { display: flex; gap: 18px; align-items: flex-end; height: 100px; margin-top: 6px; padding-left: 4px; }
+.lv-bars div { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; height: 100%; }
+.lv-bars b { color: var(--text); font-size: 13px; }
+.lv-bars i { width: 44px; border-radius: 6px 6px 2px 2px; animation: lv-grow 0.5s ease-out; }
+.lv-bars span { font-size: 11px; }
+@keyframes lv-grow { from { transform: scaleY(0); transform-origin: bottom; } to { transform: scaleY(1); transform-origin: bottom; } }
+.lv-badges { border-collapse: collapse; margin-top: 4px; width: 100%; }
+.lv-badges th { font-weight: 500; color: var(--muted); font-size: 11px; padding: 2px 4px; }
+.lv-badges td { padding: 3px 4px; text-align: center; color: var(--text); }
+.lv-badges td:first-child { text-align: left; }
+.lv-badges td.y { color: var(--good); font-size: 16px; font-weight: 700; }
+.lv-badges td.n { color: var(--bad); font-size: 16px; font-weight: 700; }
+@media (max-width: 760px) { #lesson-viz { left: 8px; bottom: 82px; width: min(250px, 62%); padding: 7px 9px; } }
+/* Phones, Model 0 lessons: no HUD (no gravity, no feet to watch). The lesson strip runs across the top
+   with the live visual under it, leaving the middle of the scene for the body. */
+@media (max-width: 760px) {
+  body.lesson-model0 #hud { display: none; }
+  body.lesson-model0 #lesson-card.folded { left: 8px; top: 8px; }
+  body.lesson-model0 #lesson-viz { top: 76px; bottom: auto; width: min(260px, 70%); }
+  #lesson-viz { font-size: 11px; }
+  .lv-big { font-size: 20px; }
+  .lv-bars { height: 80px; }
+}
