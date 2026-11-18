@@ -27,6 +27,8 @@
   const renderer = new FC.Renderer($("view"));
   const controls = new FC.Controls($("controls"));
   const touchpad = new FC.TouchPad($("touchpad"), controls); // thumb controls on touch screens
+  const plots = FC.Plots ? new FC.Plots($("plots")) : null; // live plots: orientation, angular velocity, angular momentum
+  FC.plots = plots; // (for debugging in the console)
   // Phones and tablets: no keyboard, so the thumb controls replace the keys.
   const TOUCH = matchMedia("(hover: none), (pointer: coarse)").matches;
 
@@ -196,6 +198,8 @@
     game.t = 0;
     game.L = 0;
     game.log = [];
+    game.clock = 0; game.Omega = [0, 0, 0];
+    if (plots) plots.reset();
     game.rightedAt = null;
     game.pilotMem = {};
     game.schedPilot = null; // Watch mode: optimized open-loop pilot, set on drop
@@ -260,6 +264,8 @@
         belief: FC.sim.makeBelief($("cue").value, { seed: (Math.random() * 1e9) | 0, drift: +$("drift").value }) };
     }
     game.paused = false; // a new drop always starts running
+    game.clock = 0; game.Omega = [0, 0, 0];
+    if (plots) plots.reset();
     game.nar = { timeline: [] };
     syncSpeedBar();
   }
@@ -346,6 +352,8 @@
       if (physicsOn) {
         const st = FC.physics.step(game.model, game.R, game.shape, s1, h);
         game.R = st.R;
+        game.Omega = st.Omega; // body-frame angular velocity over this sub-step (for the live plots)
+        game.clock += h; // simulated time while the body moves freely (plots' time axis)
         maxL = Math.max(maxL, v.norm(st.L));
       }
       if (game.zg) {
@@ -767,6 +775,9 @@
   $("speed").addEventListener("input", updateSetupUi);
   $("air-on").addEventListener("change", () => { if (game.phase !== "falling") reset(); });
   $("strategy").addEventListener("change", updateSetupUi);
+  // Live plots: on by default on computers, off on phones (small screen); remembered.
+  $("plots-on").checked = store.get("plots", !TOUCH);
+  $("plots-on").addEventListener("change", () => store.set("plots", $("plots-on").checked));
   $("vibrate-on").checked = store.get("vibrate", true);
   $("vibrate-on").addEventListener("change", () => store.set("vibrate", $("vibrate-on").checked));
   $("explain-on").checked = store.get("explain", true);
@@ -948,8 +959,34 @@
     updatePhysicsView();
     if (lesson) lesson.tick();
     updateMomentumArrows();
+    updatePlots();
     renderer.adaptQuality(realDt);
     requestAnimationFrame(frame);
+  }
+
+  // ---------- live plots (right side of the scene) ----------
+  // Each part's colour: Model 0 as drawn (front orange, back blue, leg green); cats by front/back.
+  const PART_COLORS = { "front cylinder": "#e8833a", "back cylinder": "#2a78d6", leg: "#1baf7a",
+    "front half": "#e8833a", "front legs": "#f5b97a", "back half": "#3987e5", "back legs": "#8fbff5",
+    chest: "#e8833a", waist: "#c678dd", hips: "#3987e5" };
+  function updatePlots() {
+    if (!plots) return;
+    const show = $("plots-on").checked && !menu.open;
+    $("plots").hidden = !show;
+    document.body.classList.toggle("plots-on", show);
+    if (!show) return;
+    if (game.phase === "falling" || game.phase === "float") {
+      // L of each part about the system's centre of mass, component along the body's long axis x̂ (body frame)
+      const st = FC.physics.state(game.model, game.shape, game.sdot || {});
+      const parts = [];
+      for (const b of st.bodies) {
+        let p = parts.find((q) => q.name === b.part);
+        if (!p) parts.push((p = { name: b.part, color: PART_COLORS[b.part] || "#cccccc", Lx: 0 }));
+        p.Lx += b.L[0];
+      }
+      plots.push({ t: game.clock, roll: rollError(), pitch: pitchError(), omega: game.Omega || [0, 0, 0], parts, Ltot: st.L[0] });
+    }
+    plots.draw();
   }
 
   // Model 0: an arrow for each body's angular momentum L_i (world frame), from the body's centre of mass.

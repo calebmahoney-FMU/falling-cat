@@ -62,6 +62,8 @@
     <section id="lesson-card" hidden aria-live="polite"></section>
     <!-- The lesson's live visual (meter, dial, bars, badges) on the scene. -->
     <div id="lesson-viz" hidden></div>
+    <!-- Live plots, stacked on the right: orientation, angular velocity, angular momentum vs time (js/plots.js). -->
+    <div id="plots" hidden aria-label="Live plots"></div>
     <div id="hint">Drag to orbit · scroll to zoom</div>
     <div id="views">
       <button data-view="front">Front</button>
@@ -155,6 +157,7 @@
           </select>
         </label>
         <label class="check"><input type="checkbox" id="coach-on" checked> Coach hints on screen</label>
+        <label class="check"><input type="checkbox" id="plots-on"> Live plots: angle, angular velocity, angular momentum</label>
         <label class="check touch-only"><input type="checkbox" id="vibrate-on" checked> Vibrate on landing (harder hit, longer buzz)</label>
       </div>
       <div class="buttons">
@@ -285,6 +288,7 @@
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/touch.js"></script>
+<script src="js/plots.js"></script>
 <script src="js/lessons.js"></script>
 <script src="js/game.js"></script>
 <script>
