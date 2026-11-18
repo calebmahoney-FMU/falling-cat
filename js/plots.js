@@ -18,12 +18,14 @@ FC.Plots = class {
     this.el = container;
     this.WINDOW = 4; // simulated seconds shown
     this.samples = [];
-    const block = (key, title, unit) => `<div class="pl-block" data-k="${key}"><div class="pl-head"><span class="pl-title">${title}</span>
-      <span class="pl-unit">${unit}</span></div><div class="pl-legend"></div><canvas></canvas></div>`;
+    // One line per plot: a short title with its unit, then the legend; the full name is the tooltip.
+    const block = (key, title, unit, full) => `<div class="pl-block" data-k="${key}" title="${full}"><div class="pl-head"><span class="pl-title">${title}
+      <span class="pl-unit">${unit}</span></span><div class="pl-legend"></div></div><canvas></canvas></div>`;
     container.innerHTML =
-      block("ang", "Orientation", "deg from upright") +
-      block("om", `Angular velocity <span class="vc">Ω</span>`, "rad/s, body frame") +
-      block("L", `Angular momentum <span class="vc">L</span><sub><var>i</var></sub>·<span class="uv">x̂</span>`, "10⁻³ kg·m²/s");
+      block("ang", "Angle", "°", "Orientation: roll and pitch, degrees from upright") +
+      block("om", `<span class="vc">Ω</span>`, "rad/s", "Angular velocity of the body frame, components in the body frame") +
+      block("L", `<span class="vc">L</span><sub><var>i</var></sub>·<span class="uv">x̂</span>`, "10⁻³ kg·m²/s",
+        "Angular momentum of each part along the body's long axis, and the total");
     this.cv = {};
     container.querySelectorAll(".pl-block").forEach((b) => (this.cv[b.dataset.k] = { canvas: b.querySelector("canvas"), legend: b.querySelector(".pl-legend") }));
     this.legendKey = {};

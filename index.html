@@ -18,15 +18,10 @@
 
     <div id="hud">
       <div class="hud-row"><span id="hud-mode">Challenge · Level 1</span></div>
-      <div class="hud-label" id="hud-time-label">Time to impact</div>
       <div class="bar"><div id="time-bar"></div></div>
       <div class="hud-row small"><span id="hud-time">–</span><span id="hud-height">–</span></div>
-      <div class="hud-row small"><span>Speed</span><b id="hud-speed">0</b></div>
       <canvas id="gauge" width="160" height="160" title="Looking along the cat's spine: where each pair of feet points"></canvas>
       <div class="hud-row small"><span class="tag front">Front feet <b id="ang-front">–</b></span><span class="tag back">Back feet <b id="ang-back">–</b></span></div>
-      <div class="hud-row small" title="Total angular momentum of the cat, computed independently from the motion of every body part. It should stay at zero.">
-        <span>Angular momentum |L|</span><b id="hud-L">0</b>
-      </div>
     </div>
 
     <div id="banner" class="hidden">
@@ -46,7 +41,6 @@
       <div id="nar-body"></div>
       <div id="nar-live"></div>
       <ol id="nar-timeline"></ol>
-      <div class="nar-tip">Too fast to read? Slow down or pause (P) with the speed bar.</div>
     </div>
     <!-- Playback speed over the scene: pause, a slider (log scale) and quick presets. -->
     <div id="speedbar">
@@ -54,7 +48,7 @@
       <input type="range" id="speed-bar" min="0" max="1" step="0.001" aria-label="Playback speed">
       <span id="speed-bar-out">0.15×</span>
       <span class="speed-presets">
-        <button data-speed="1">1×</button><button data-speed="0.5">½</button><button data-speed="0.25">¼</button><button data-speed="0.1">1/10</button><button data-speed="0.05">1/20</button>
+        <button data-speed="1">1×</button><button data-speed="0.25">¼</button>
       </span>
     </div>
     <button id="stage-drop" class="primary" hidden>Drop</button>
@@ -64,7 +58,6 @@
     <div id="lesson-viz" hidden></div>
     <!-- Live plots, stacked on the right: orientation, angular velocity, angular momentum vs time (js/plots.js). -->
     <div id="plots" hidden aria-label="Live plots"></div>
-    <div id="hint">Drag to orbit · scroll to zoom</div>
     <div id="views">
       <button data-view="front">Front</button>
       <button data-view="side">Side</button>
@@ -145,20 +138,24 @@
         <label class="field" id="height-field">Drop height <output id="height-out"></output>
           <input type="range" id="height" min="0" max="1" step="1" value="0">
         </label>
-        <label class="check" title="Air drag slows the fall; spread legs act like a parachute (top speed about 27 m/s, 60 mph).">
-          <input type="checkbox" id="air-on" checked> Air resistance</label>
-        <label class="field">Slow motion <output id="speed-out"></output>
-          <input type="range" id="speed" min="0.02" max="1" step="0.01" value="0.15">
-        </label>
         <label class="field" id="start-field">Start position
           <select id="start">
             <option value="upside">Upside down</option>
             <option value="random" selected>Random tumble</option>
           </select>
         </label>
-        <label class="check"><input type="checkbox" id="coach-on" checked> Coach hints on screen</label>
-        <label class="check"><input type="checkbox" id="plots-on"> Live plots: angle, angular velocity, angular momentum</label>
-        <label class="check touch-only"><input type="checkbox" id="vibrate-on" checked> Vibrate on landing (harder hit, longer buzz)</label>
+        <label class="check" title="Angle, angular velocity and angular momentum against time, on the right of the scene"><input type="checkbox" id="plots-on"> Live plots</label>
+        <!-- Rarely changed settings, folded away. -->
+        <details id="settings">
+          <summary>Settings</summary>
+          <label class="check" title="Air drag slows the fall; spread legs act like a parachute (top speed about 27 m/s, 60 mph).">
+            <input type="checkbox" id="air-on" checked> Air resistance</label>
+          <label class="field">Slow motion <output id="speed-out"></output>
+            <input type="range" id="speed" min="0.02" max="1" step="0.01" value="0.15">
+          </label>
+          <label class="check"><input type="checkbox" id="coach-on" checked> Coach hints on screen</label>
+          <label class="check touch-only"><input type="checkbox" id="vibrate-on" checked> Vibrate on landing</label>
+        </details>
       </div>
       <div class="buttons">
         <button id="drop" class="primary">Drop <kbd>Space</kbd></button>
@@ -225,8 +222,8 @@
         time you have. Bending and unbending, or twisting and untwisting, on their own get you
         nowhere; a net turn needs a <i>loop</i> in shape space, like sweeping the bend
         direction round, or twisting with different legs tucked on the way out and back.</p>
-        <p>The |<b><i>L</i></b>| readout (the magnitude of the angular momentum vector) recomputes it
-        independently from the motion of every part. It stays near zero (rounding error only).</p>
+        <p>The white "total" line in the angular momentum plot adds up every part's spin and orbital
+        angular momentum. It stays at zero (rounding error only).</p>
         <p><a href="physics.html" class="results-link">Moment of inertia, angular momentum and every move explained →</a></p>
       </details>
     </section>

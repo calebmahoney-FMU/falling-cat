@@ -565,13 +565,13 @@
     $("ang-back").textContent = `${aB.toFixed(0)}°`;
     // Measured independently from every body's motion over a sub-step (a finite difference,
     // so it reads ~1e-6 of the parts' own angular momenta, not exactly 0). kg·m²/s.
-    $("hud-L").textContent = game.L.toFixed(4);
+    if ($("hud-L")) $("hud-L").textContent = game.L.toFixed(4);
 
     const modeText = { challenge: `Challenge · Level ${game.level + 1}`, free: "Free drop", float: "Zero-g practice", watch: "Watch the cat" }[game.mode];
     $("hud-mode").textContent = modeText + (zeroG() ? " · zero g" : "") + (game.demo && game.mode !== "watch" ? " · demo" : "");
 
     const bar = $("time-bar");
-    $("hud-time-label").textContent = zeroG() ? "Weightless time" : "Time to impact";
+    if ($("hud-time-label")) $("hud-time-label").textContent = zeroG() ? "Weightless time" : "Time to impact";
     if (zeroG()) {
       // Time left in the weightless spell.
       const dur = FC.sim.ZERO_G_SECONDS, left = game.zg ? Math.max(0, dur - game.zg.t) : dur;
@@ -593,7 +593,7 @@
       $("hud-height").textContent = `${Math.max(0, game.pos[1]).toFixed(game.pos[1] >= 10 ? 0 : 2)} m`;
     }
     const speed = game.phase === "falling" ? game.vy : game.phase === "absorbing" ? game.absorb.v : 0;
-    $("hud-speed").textContent = `${speed.toFixed(1)} m/s (${(speed * 3.6).toFixed(0)} km/h)`;
+    if ($("hud-speed")) $("hud-speed").textContent = `${speed.toFixed(1)} m/s (${(speed * 3.6).toFixed(0)} km/h)`;
     drawGauge();
     const narrating = updateNarrator();
 
@@ -971,11 +971,9 @@
     chest: "#e8833a", waist: "#c678dd", hips: "#3987e5" };
   function updatePlots() {
     if (!plots) return;
-    const show = $("plots-on").checked && !menu.open;
-    $("plots").hidden = !show;
-    document.body.classList.toggle("plots-on", show);
-    if (!show) return;
-    if (game.phase === "falling" || game.phase === "float") {
+    // Shown only once there is something to plot (not while setting up a drop).
+    const want = $("plots-on").checked && !menu.open;
+    if (want && (game.phase === "falling" || game.phase === "float")) {
       // L of each part about the system's centre of mass, component along the body's long axis x̂ (body frame)
       const st = FC.physics.state(game.model, game.shape, game.sdot || {});
       const parts = [];
@@ -986,7 +984,10 @@
       }
       plots.push({ t: game.clock, roll: rollError(), pitch: pitchError(), omega: game.Omega || [0, 0, 0], parts, Ltot: st.L[0] });
     }
-    plots.draw();
+    const show = want && plots.samples.length > 0;
+    $("plots").hidden = !show;
+    document.body.classList.toggle("plots-on", show);
+    if (show) plots.draw();
   }
 
   // Model 0: an arrow for each body's angular momentum L_i (world frame), from the body's centre of mass.

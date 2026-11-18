@@ -161,9 +161,9 @@ body.menu-open #views, body.menu-open #hint { display: none; }
 #speed-bar-out { min-width: 46px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
 #speedbar.locked input, #speedbar.locked .speed-presets { opacity: 0.4; pointer-events: none; }
 body.menu-open #speedbar, #banner:not(.hidden) ~ #speedbar { display: none; } /* out of the way of the landing report */
-/* Narrow screens keep 1× and the slow presets (the useful ones for watching), dropping ½ and ¼. */
+/* Narrow screens: a shorter bar. */
 @media (max-width: 760px) { #speedbar { bottom: 40px; gap: 5px; padding: 5px 8px; } #speedbar input[type=range] { width: 80px; }
-  .speed-presets button:nth-child(2), .speed-presets button:nth-child(3) { display: none; } }
+}
 
 /* Narrator (Watch mode and demos): the current move, why it works, and a timeline of moves so far.
    Sits bottom-left, under the HUD and above the hint line. */
@@ -399,7 +399,7 @@ body.menu-open #lesson-viz { display: none; }
 body.plots-on #views { right: 12px; bottom: 10px; }
 @media (min-width: 761px) {
   body.plots-on #lesson-card { max-height: calc(100% - 400px); min-height: 0; }
-  body.plots-on #speedbar { left: calc(50% - 141px); } /* centred in the space left of the plots */
+  body.plots-on #speedbar { left: calc(50% - 126px); } /* centred in the space left of the plots */
 }
 /* Phones: a narrower column on the right, between the top strip and the Drop button. */
 @media (max-width: 760px) {
@@ -409,4 +409,69 @@ body.plots-on #views { right: 12px; bottom: 10px; }
   .pl-unit { display: none; }
   .pl-title { font-size: 10.5px; }
   .pl-block canvas { height: 52px; }
+}
+
+/* ---------- compact layout: less on screen, no wasted space ---------- */
+/* Side panel: tighter spacing and smaller type. */
+#panel { padding: 10px 12px 20px; }
+#panel h1 { font-size: 19px; }
+.tagline { margin: 0 0 6px; font-size: 13px; }
+.results-link { margin-top: 2px; font-size: 12.5px; }
+section { padding: 8px 0; }
+.desc { font-size: 12px; margin-top: 4px; line-height: 1.4; }
+.field { margin: 5px 0; font-size: 12.5px; }
+select, input[type=range] { margin-top: 2px; }
+select { padding: 4px 6px; }
+.check { margin: 6px 0 0; font-size: 12.5px; }
+.buttons { margin-top: 8px; gap: 6px; }
+button { padding: 6px 10px; }
+.small-btn { margin-top: 6px; padding: 4px 9px; font-size: 12.5px; }
+.seg button { padding: 5px 4px; }
+.ctrl { margin: 6px 0; }
+details { margin: 4px 0; }
+#settings { margin: 8px 0 0; }
+#settings summary { font-weight: 500; font-size: 13px; color: var(--muted); }
+
+/* Scene overlays: smaller and tucked into the corners. */
+#hud { top: 8px; left: 8px; width: 150px; padding: 7px 9px; }
+#hud-mode { font-size: 13px; }
+.bar { height: 5px; margin-top: 5px; }
+.hud-row.small { font-size: 11px; margin-top: 3px; }
+#gauge { width: 104px; height: 104px; margin: 2px auto 0; }
+#coach { top: 8px; left: 166px; padding: 6px 12px; font-size: 14px; }
+#banner { padding: 12px 16px; }
+#banner-title { font-size: 22px; }
+#narrator { left: 8px; bottom: 50px; width: 300px; max-height: calc(100% - 270px); padding: 8px 10px; font-size: 12.5px; }
+#lesson-viz { left: 8px; bottom: 50px; }
+#speedbar { bottom: 8px; gap: 6px; padding: 4px 8px; }
+#speedbar input[type=range] { width: 100px; }
+#views { right: 8px; bottom: 8px; gap: 4px; }
+#views button { padding: 3px 8px; font-size: 11px; }
+#plots { right: 8px; bottom: 40px; width: 240px; gap: 4px; }
+body.plots-on #views { right: 8px; bottom: 8px; }
+.pl-block { padding: 3px 7px 2px; border-radius: 8px; }
+.pl-head { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 0 8px; }
+.pl-title { font-size: 11.5px; white-space: nowrap; }
+.pl-unit { font-size: 10px; font-weight: 400; }
+.pl-legend { margin: 0; gap: 0 7px; font-size: 9.5px; }
+.pl-block canvas { height: 54px; }
+@media (hover: none), (pointer: coarse) { #stage-drop { bottom: 44px; } }
+
+@media (max-width: 760px) {
+  #hud { top: 6px; left: 6px; width: 124px; padding: 5px 7px; }
+  #hud-mode { font-size: 12px; }
+  #gauge { width: 80px; height: 80px; }
+  #coach { top: 6px; left: 136px; right: 6px; padding: 5px 10px; font-size: 12px; }
+  #narrator { left: 6px; right: 6px; width: auto; bottom: 44px; padding: 6px 8px; }
+  #lesson-viz { left: 6px; bottom: 44px; }
+  #speedbar { left: 6px; transform: none; bottom: 6px; padding: 3px 6px; gap: 4px; } /* left, clear of the camera buttons */
+  body.plots-on #speedbar { left: 6px; }
+  #speedbar input[type=range] { width: 56px; }
+  #speed-bar-out { min-width: 34px; }
+  #views button { padding: 3px 6px; }
+  #views { right: 6px; bottom: 6px; }
+  #plots { top: 62px; right: 6px; bottom: auto; width: 46%; gap: 3px; } /* under a two-line coach hint */
+  .pl-unit { display: inline; }
+  .pl-block canvas { height: 40px; }
+  body.plots-on #narrator { right: calc(46% + 12px); }
 }
