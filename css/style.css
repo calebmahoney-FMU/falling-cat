@@ -398,8 +398,7 @@ body.menu-open #lesson-viz { display: none; }
 /* The camera-view buttons sit under the plots' column; the lesson card stops above it. */
 body.plots-on #views { right: 12px; bottom: 10px; }
 @media (min-width: 761px) {
-  body.plots-on #lesson-card { max-height: calc(100% - 400px); min-height: 0; }
-  body.plots-on #speedbar { left: calc(50% - 126px); } /* centred in the space left of the plots */
+  body.plots-on #lesson-card { min-height: 0; }
 }
 /* Phones: a narrower column on the right, between the top strip and the Drop button. */
 @media (max-width: 760px) {
@@ -447,14 +446,16 @@ details { margin: 4px 0; }
 #speedbar input[type=range] { width: 100px; }
 #views { right: 8px; bottom: 8px; gap: 4px; }
 #views button { padding: 3px 8px; font-size: 11px; }
-#plots { right: 8px; bottom: 40px; width: 240px; gap: 4px; }
+#plots { top: 8px; right: 8px; bottom: auto; width: 240px; gap: 3px; } /* top right of the scene */
 body.plots-on #views { right: 8px; bottom: 8px; }
 .pl-block { padding: 3px 7px 2px; border-radius: 8px; }
 .pl-head { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 0 8px; }
 .pl-title { font-size: 11.5px; white-space: nowrap; }
 .pl-unit { font-size: 10px; font-weight: 400; }
 .pl-legend { margin: 0; gap: 0 7px; font-size: 9.5px; }
-.pl-block canvas { height: 54px; }
+.pl-block canvas { height: 36px; }
+body.plots-on #coach { right: 256px; } /* the coach hint stays clear of the plots */
+@media (min-width: 761px) { body.plots-on #lesson-card { top: var(--plots-h, 190px); max-height: calc(100% - var(--plots-h, 190px) - 60px); } }
 @media (hover: none), (pointer: coarse) { #stage-drop { bottom: 44px; } }
 
 @media (max-width: 760px) {
@@ -470,8 +471,12 @@ body.plots-on #views { right: 8px; bottom: 8px; }
   #speed-bar-out { min-width: 34px; }
   #views button { padding: 3px 6px; }
   #views { right: 6px; bottom: 6px; }
-  #plots { top: 62px; right: 6px; bottom: auto; width: 46%; gap: 3px; } /* under a two-line coach hint */
+  #plots { top: 6px; right: 6px; bottom: auto; width: 46%; gap: 3px; }
+  /* the coach hint moves to the bottom of the scene while the plots hold the top right */
+  body.plots-on #coach { top: auto; bottom: 44px; left: 6px; right: 6px; }
+  /* lessons: the lesson card holds the top, so the plots sit at the bottom right, above the camera buttons */
+  body.in-lesson #plots { top: auto; bottom: 40px; }
   .pl-unit { display: inline; }
-  .pl-block canvas { height: 40px; }
+  .pl-block canvas { height: 30px; }
   body.plots-on #narrator { right: calc(46% + 12px); }
 }

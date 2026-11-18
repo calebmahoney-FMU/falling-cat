@@ -969,6 +969,7 @@
   const PART_COLORS = { "front cylinder": "#e8833a", "back cylinder": "#2a78d6", leg: "#1baf7a",
     "front half": "#e8833a", "front legs": "#f5b97a", "back half": "#3987e5", "back legs": "#8fbff5",
     chest: "#e8833a", waist: "#c678dd", hips: "#3987e5" };
+  let plotsH = 0; // last height of the plots column (px)
   function updatePlots() {
     if (!plots) return;
     // Shown only once there is something to plot (not while setting up a drop).
@@ -987,7 +988,12 @@
     const show = want && plots.samples.length > 0;
     $("plots").hidden = !show;
     document.body.classList.toggle("plots-on", show);
-    if (show) plots.draw();
+    if (show) {
+      plots.draw();
+      // the lesson card (desktop) starts just under the plots
+      const h = $("plots").offsetHeight + 16;
+      if (h !== plotsH) { plotsH = h; document.body.style.setProperty("--plots-h", `${h}px`); }
+    }
   }
 
   // Model 0: an arrow for each body's angular momentum L_i (world frame), from the body's centre of mass.
