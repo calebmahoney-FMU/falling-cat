@@ -922,6 +922,7 @@
 
   $("menu-start").addEventListener("click", closeMenu);
   $("open-menu").addEventListener("click", () => openMenu());
+  $("stage-menu").addEventListener("click", () => openMenu());
   $("model-select").addEventListener("change", () => (menu.model = $("model-select").value));
 
   // Behind the menu: the chosen cat stands on the ground, legs out, slowly turning.

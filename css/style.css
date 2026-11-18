@@ -446,7 +446,7 @@ details { margin: 4px 0; }
 #speedbar input[type=range] { width: 100px; }
 #views { right: 8px; bottom: 8px; gap: 4px; }
 #views button { padding: 3px 8px; font-size: 11px; }
-#plots { top: 8px; right: 8px; bottom: auto; width: 240px; gap: 3px; } /* top right of the scene */
+#plots { top: 8px; right: 8px; bottom: auto; width: 190px; gap: 3px; } /* top right of the scene */
 body.plots-on #views { right: 8px; bottom: 8px; }
 .pl-block { padding: 3px 7px 2px; border-radius: 8px; }
 .pl-head { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 0 8px; }
@@ -454,7 +454,7 @@ body.plots-on #views { right: 8px; bottom: 8px; }
 .pl-unit { font-size: 10px; font-weight: 400; }
 .pl-legend { margin: 0; gap: 0 7px; font-size: 9.5px; }
 .pl-block canvas { height: 36px; }
-body.plots-on #coach { right: 256px; } /* the coach hint stays clear of the plots */
+body.plots-on #coach { right: 206px; } /* the coach hint stays clear of the plots */
 @media (min-width: 761px) { body.plots-on #lesson-card { top: var(--plots-h, 190px); max-height: calc(100% - var(--plots-h, 190px) - 60px); } }
 @media (hover: none), (pointer: coarse) { #stage-drop { bottom: 44px; } }
 
@@ -471,12 +471,37 @@ body.plots-on #coach { right: 256px; } /* the coach hint stays clear of the plot
   #speed-bar-out { min-width: 34px; }
   #views button { padding: 3px 6px; }
   #views { right: 6px; bottom: 6px; }
-  #plots { top: 6px; right: 6px; bottom: auto; width: 46%; gap: 3px; }
+  #plots { top: 6px; right: 6px; bottom: auto; width: 38%; gap: 3px; }
   /* the coach hint moves to the bottom of the scene while the plots hold the top right */
   body.plots-on #coach { top: auto; bottom: 44px; left: 6px; right: 6px; }
   /* lessons: the lesson card holds the top, so the plots sit at the bottom right, above the camera buttons */
   body.in-lesson #plots { top: auto; bottom: 40px; }
   .pl-unit { display: inline; }
   .pl-block canvas { height: 30px; }
-  body.plots-on #narrator { right: calc(46% + 12px); }
+  body.plots-on #narrator { right: calc(38% + 12px); }
+}
+
+/* ---------- lesson card sized to its text; Menu button on the scene ---------- */
+#lesson-card { width: fit-content; max-width: min(360px, 44%); }
+@media (max-width: 760px) {
+  #lesson-card { right: auto; width: fit-content; max-width: calc(100% - 16px); }
+  #lesson-card.folded { max-width: calc(100% - 178px); }
+  body.lesson-model0 #lesson-card.folded { max-width: calc(100% - 16px); }
+}
+/* Main menu button, bottom-left of the scene (always there, also on the landing report). */
+#stage-menu { position: absolute; left: 8px; bottom: 8px; z-index: 8; padding: 4px 10px; font-size: 12px; border-radius: 999px;
+  background: rgba(18, 21, 28, 0.82); border-color: var(--line); }
+#stage-menu .sm-icon { font-size: 13px; }
+body.menu-open #stage-menu { display: none; }
+@media (max-width: 760px) {
+  #stage-menu { left: 6px; bottom: 6px; padding: 5px 11px; font-size: 13px; }
+  #speedbar, body.plots-on #speedbar { left: 82px; }
+  .speed-presets { display: none; } /* phones: pause + slider only, to fit beside Menu */
+  #speedbar input[type=range] { width: 60px; }
+}
+@media (max-width: 760px) {
+  .pl-legend { font-size: 8.5px; gap: 0 5px; }
+  .pl-legend i { width: 8px; margin-right: 2px; }
+  .pl-title { font-size: 10.5px; }
+  .pl-unit { font-size: 8.5px; }
 }
