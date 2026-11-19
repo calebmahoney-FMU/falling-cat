@@ -342,10 +342,30 @@
   const world = new THREE.Group(); world.rotation.x = -Math.PI / 2; scene.add(world);
   const grid = new THREE.GridHelper(1.6, 16, 0x3a4250, 0x262c36); grid.position.y = -0.35; scene.add(grid);
   const colorOf = (n) => new THREE.Color(css(n) || "#888");
-  function cylMesh(r, len, axis, color) {
+  // Stripes so a spin about the long axis is visible: 6 lines along each cylinder (5 cream,
+  // 1 dark marker) and the same 6 as spokes on each end. Thin rods (the leg) stay plain.
+  function stripedMaterials(color) {
+    const base = `#${color.getHexString()}`, N = 6, CREAM = "#f6f1e4", MARK = "#1b1f27";
+    const tex = (w, h, draw) => { const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"));
+      return new THREE.CanvasTexture(c); }; // this page renders without sRGB output, like its plain colours
+    const side = tex(256, 16, (g) => {
+      g.fillStyle = base; g.fillRect(0, 0, 256, 16);
+      for (let k = 0; k < N; k++) { const sw = k ? 10 : 22, x = (k * 256) / N - sw / 2;
+        g.fillStyle = k ? CREAM : MARK; g.fillRect(x, 0, sw, 16); if (x < 0) g.fillRect(x + 256, 0, sw, 16); }
+    });
+    const cap = tex(128, 128, (g) => {
+      g.fillStyle = base; g.fillRect(0, 0, 128, 128); g.lineCap = "round";
+      for (let k = 0; k < N; k++) { const a = (k * 2 * Math.PI) / N;
+        g.strokeStyle = k ? CREAM : MARK; g.lineWidth = k ? 6 : 12;
+        g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + 61 * Math.cos(a), 64 + 61 * Math.sin(a)); g.stroke(); }
+    });
+    const m = (map) => new THREE.MeshStandardMaterial({ map, roughness: 0.55, metalness: 0.05 });
+    return [m(side), m(cap), m(cap)]; // CylinderGeometry groups: side, top cap, bottom cap
+  }
+  function cylMesh(r, len, axis, color, stripes = axis === 0) {
     const g = new THREE.CylinderGeometry(r, r, len, 40);
     if (axis === 0) g.rotateZ(-Math.PI / 2); else g.rotateX(Math.PI / 2); // three's cylinders run along y
-    return new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05 }));
+    return new THREE.Mesh(g, stripes ? stripedMaterials(color) : new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05 }));
   }
   let meshes = [];
   function buildMeshes() {

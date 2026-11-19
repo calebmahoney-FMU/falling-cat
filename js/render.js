@@ -350,7 +350,29 @@ FC.Renderer = class {
     };
     const root = new THREE.Group();
     root.matrixAutoUpdate = false;
-    const meshes = [mesh(cyl.r, cyl.len, 0, mat(0xe8833a)), mesh(cyl.r, cyl.len, 0, mat(0x2a78d6)), mesh(leg.r, leg.len, 2, mat(0x1baf7a))];
+    // Stripes so a spin about the long axis is easy to see: 6 lines running along each cylinder
+    // (5 cream, 1 dark marker), and the same 6 as spokes on each end.
+    const striped = (hex) => {
+      const base = `#${new THREE.Color(hex).getHexString()}`, N = 6, CREAM = "#f6f1e4", MARK = "#1b1f27";
+      const side = this.canvas(256, 16, (g, w, h) => {
+        g.fillStyle = base; g.fillRect(0, 0, w, h);
+        for (let k = 0; k < N; k++) {
+          const sw = k ? w / 26 : w / 12, x = (k * w) / N - sw / 2;
+          g.fillStyle = k ? CREAM : MARK; g.fillRect(x, 0, sw, h); if (x < 0) g.fillRect(x + w, 0, sw, h);
+        }
+      });
+      const cap = this.canvas(128, 128, (g, w) => {
+        g.fillStyle = base; g.fillRect(0, 0, w, w); g.lineCap = "round";
+        for (let k = 0; k < N; k++) {
+          const a = (k * 2 * Math.PI) / N;
+          g.strokeStyle = k ? CREAM : MARK; g.lineWidth = k ? 6 : 12;
+          g.beginPath(); g.moveTo(w / 2, w / 2); g.lineTo(w / 2 + 0.48 * w * Math.cos(a), w / 2 + 0.48 * w * Math.sin(a)); g.stroke();
+        }
+      });
+      const m = (map) => new THREE.MeshStandardMaterial({ map, roughness: 0.5, metalness: 0.05 });
+      return [m(side), m(cap), m(cap)]; // CylinderGeometry groups: side, top cap, bottom cap
+    };
+    const meshes = [mesh(cyl.r, cyl.len, 0, striped(0xe8833a)), mesh(cyl.r, cyl.len, 0, striped(0x2a78d6)), mesh(leg.r, leg.len, 2, mat(0x1baf7a))];
     const joint = new THREE.Mesh(new THREE.SphereGeometry(0.012, 16, 12), mat(0xdddddd));
     joint.matrixAutoUpdate = false;
     root.add(...meshes, joint);
