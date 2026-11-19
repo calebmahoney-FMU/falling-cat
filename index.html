@@ -17,17 +17,13 @@
     <div id="view"></div>
 
     <div id="hud">
-      <div class="hud-row"><span id="hud-mode">Challenge · Level 1</span></div>
       <div class="bar"><div id="time-bar"></div></div>
-      <div class="hud-row small"><span id="hud-time">–</span><span id="hud-height">–</span></div>
-      <canvas id="gauge" width="160" height="160" title="Looking along the cat's spine: where each pair of feet points"></canvas>
       <div class="hud-row small"><span class="tag front">Front feet <b id="ang-front">–</b></span><span class="tag back">Back feet <b id="ang-back">–</b></span></div>
     </div>
 
     <div id="banner" class="hidden">
       <div id="banner-title"></div>
       <div id="banner-text"></div>
-      <canvas id="chart" width="560" height="200" title="Flight log: how far each pair of feet was from pointing down, and the spine bend, over the fall"></canvas>
       <div class="banner-buttons">
         <button id="banner-next" class="primary">Next level</button>
         <button id="banner-retry">Try again</button>
@@ -35,21 +31,16 @@
     </div>
 
     <div id="coach" class="hidden"></div>
-    <!-- Watch mode / demos: what the cat is doing right now and why, plus a timeline of its moves. -->
+    <!-- Watch mode / demos: what the cat is doing right now and why. -->
     <div id="narrator" class="hidden" aria-live="polite">
-      <div class="nar-head"><span id="nar-title"></span><a id="nar-more" href="physics.html" target="_blank" title="Open the physics page at this topic">Why? ↗</a></div>
+      <div class="nar-head"><span id="nar-title"></span></div>
       <div id="nar-body"></div>
-      <div id="nar-live"></div>
-      <ol id="nar-timeline"></ol>
     </div>
-    <!-- Playback speed over the scene: pause, a slider (log scale) and quick presets. -->
+    <!-- Playback speed over the scene: pause and a slider (log scale). -->
     <div id="speedbar">
       <button id="pause" title="Pause / resume (P)" aria-label="Pause">&#10074;&#10074;</button>
       <input type="range" id="speed-bar" min="0" max="1" step="0.001" aria-label="Playback speed">
       <span id="speed-bar-out">0.15×</span>
-      <span class="speed-presets">
-        <button data-speed="1">1×</button><button data-speed="0.25">¼</button>
-      </span>
     </div>
     <button id="stage-drop" class="primary" hidden>Drop</button>
     <!-- Guided lesson card over the scene (filled by js/lessons.js). Phones: folded to one line, tap to open. -->
@@ -60,11 +51,6 @@
     <div id="plots" hidden aria-label="Live plots"></div>
     <!-- Always-visible way back to the main menu (same as the panel's Menu button). -->
     <button id="stage-menu" title="Main menu (Esc)" aria-label="Main menu"><span class="sm-icon">☰</span><span class="sm-text"> Menu</span></button>
-    <div id="views">
-      <button data-view="front">Front</button>
-      <button data-view="side">Side</button>
-      <button data-view="top">Below</button>
-    </div>
   </main>
 
   <!-- Touch screens: thumb controls under the scene while you play the cat (filled by js/touch.js). -->
@@ -75,10 +61,6 @@
       <h1>Falling Cat</h1>
       <button id="open-menu" class="small-btn" title="Back to the main menu">Menu <kbd>Esc</kbd></button>
     </div>
-    <p class="tagline">You are the cat. Nothing to push against. Land on your feet.
-      <a href="index.html?lessons" class="results-link" id="panel-lessons">Guided lessons →</a>
-      <a href="physics.html" class="results-link">The physics behind it →</a>
-      <a href="results.html" class="results-link">See the simulation results →</a></p>
 
     <section>
       <label class="field">Model
@@ -196,7 +178,7 @@
         changing your body's shape.</p>
         <p><b>Bend and twist:</b> bend the spine (<kbd>W</kbd>), then hold <kbd>A</kbd> or
         <kbd>D</kbd> to sweep the bend direction around in a circle. The body rolls the
-        <i>opposite</i> way to your sweep: watch the dial and the feet gauge (both are seen from
+        <i>opposite</i> way to your sweep: watch the bend dial (seen from
         behind the cat). In model B, at full bend one lap rolls the cat about 150°; at half bend only about 40°
         (the roll grows roughly with the square of the bend).
         <b>Pro tip</b> (found by the optimizer): tuck all four legs (<kbd>Z</kbd> <kbd>C</kbd>) while you
@@ -210,8 +192,8 @@
         <p>Land with your spine straight and legs spread for full marks. In models C and D, land with
         straight knees: the more they can fold, the softer the landing.</p>
         <p><b>Watch the cat:</b> here you're not the cat. Set its starting tilt, pitch and pose
-        and how fast its reflex kicks in, drop it, and see how it lands. The flight log after
-        landing shows how each pair of feet swung toward the ground.</p>
+        and how fast its reflex kicks in, drop it, and see how it lands. Turn on Live plots to
+        watch its angle, angular velocity and angular momentum as it turns.</p>
       </details>
       <details>
         <summary>The physics</summary>

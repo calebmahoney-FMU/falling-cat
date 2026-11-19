@@ -159,7 +159,7 @@ FC.narrator = (function () {
     if (ctx.zg) {
       // Zero g: the reflex steers by where the cat *believes* down is.
       const off = ctx.zg.beliefErr / deg;
-      st = { ...st, body: `In zero g, the cat steers toward where it thinks down is (the white ring on the gauge). ` + st.body,
+      st = { ...st, body: `In zero g, the cat steers toward where it thinks down is. ` + st.body,
         live: `${st.live} · its sense of down is ${off.toFixed(0)}° off` };
       if (st.key === "land") st = { ...st, title: "Holding its pose", body: "The cat thinks it's feet-down, so it straightens out and stays still. " +
         "With no shape change there is no turning, even if its idea of down drifts away from the real floor." };

@@ -391,18 +391,49 @@ FC.Renderer = class {
     this.ghostPending = false;
     if (!this.cat) return;
     // A light-blue see-through shell, a touch larger than the body so it shows even where they overlap.
-    const mat = new THREE.MeshBasicMaterial({ color: 0x9fd4ff, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.BackSide });
+    const BLUE = 0x9fd4ff;
+    const mat = new THREE.MeshBasicMaterial({ color: BLUE, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.BackSide });
     const g = this.cat.root.clone(true);
     const grow = new THREE.Matrix4().makeScale(1.06, 1.06, 1.06);
-    g.traverse((o) => {
-      if (o.isMesh) {
-        o.material = mat; o.castShadow = false;
-        // meshes placed by a hand-set matrix (Model 0) scale that matrix; the others their scale property
-        if (o.matrixAutoUpdate) o.scale.multiplyScalar(1.06); else o.matrix.multiply(grow);
-      } else if (o.isLine) o.visible = false;
+    const model0 = this.cat.kind === "model0";
+    const meshes = [];
+    g.traverse((o) => { if (o.isMesh) meshes.push(o); else if (o.isLine) o.visible = false; });
+    meshes.forEach((o, i) => {
+      o.castShadow = false;
+      // meshes placed by a hand-set matrix (Model 0) scale that matrix; the others their scale property
+      if (o.matrixAutoUpdate) o.scale.multiplyScalar(1.06); else o.matrix.multiply(grow);
+      if (!model0) { o.material = mat; return; }
+      // Model 0: the start pose drawn as a clear light-blue cage: the body's stripes in light blue at
+      // their starting angles (compare them with the body's own stripes), and outlined ends.
+      o.material = i < 2 ? this.ghostStripes() : new THREE.MeshBasicMaterial({ color: BLUE, transparent: true, opacity: 0.35, depthWrite: false });
+      o.renderOrder = 2;
+      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 30),
+        new THREE.LineBasicMaterial({ color: BLUE, transparent: true, opacity: 0.95, depthWrite: false }));
+      edges.renderOrder = 3;
+      o.add(edges);
     });
     this.ghost = g;
     this.scene.add(g);
+  }
+  // Light-blue stripes on a faint see-through tint, matching the Model 0 cylinders' stripe layout
+  // (6 along the length, the marker one wide), side + both ends.
+  ghostStripes() {
+    if (this.ghostMats) return this.ghostMats;
+    const BLUE = "#9fd4ff", N = 6, TINT = "rgba(159, 212, 255, 0.16)";
+    const side = this.canvas(256, 16, (g, w, h) => {
+      g.fillStyle = TINT; g.fillRect(0, 0, w, h); g.fillStyle = BLUE;
+      for (let k = 0; k < N; k++) { const sw = k ? w / 40 : w / 14, x = (k * w) / N - sw / 2; g.fillRect(x, 0, sw, h); if (x < 0) g.fillRect(x + w, 0, sw, h); }
+    });
+    const cap = this.canvas(128, 128, (g, w) => {
+      g.fillStyle = TINT; g.beginPath(); g.arc(w / 2, w / 2, w / 2, 0, 2 * Math.PI); g.fill();
+      g.strokeStyle = BLUE; g.lineCap = "round";
+      for (let k = 0; k < N; k++) {
+        const a = (k * 2 * Math.PI) / N; g.lineWidth = k ? 4 : 10;
+        g.beginPath(); g.moveTo(w / 2, w / 2); g.lineTo(w / 2 + 0.48 * w * Math.cos(a), w / 2 + 0.48 * w * Math.sin(a)); g.stroke();
+      }
+    });
+    const m = (map) => new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    return (this.ghostMats = [m(side), m(cap), m(cap)]);
   }
   // line: a dashed line between two world points (e.g. the leg's distance from the axis), or null to hide.
   setLine(a, b) {

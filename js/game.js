@@ -469,7 +469,8 @@
 
   // Flight log: feet angle from straight down (front, back) and spine bend vs time.
   function drawChart() {
-    const cv = $("chart"), g = cv.getContext("2d");
+    const cv = $("chart"); if (!cv) return; // (the flight-log chart was removed; the live plots show the fall)
+    const g = cv.getContext("2d");
     const W = cv.width, H = cv.height, L = 44, Rm = 10, Tp = 12, B = 30;
     const pw = W - L - Rm, ph = H - Tp - B;
     const log = game.log, tMax = Math.max(0.05, game.zg ? game.zg.t : game.t);
@@ -517,9 +518,10 @@
   }
 
   // ---------- HUD ----------
-  const gauge = $("gauge").getContext("2d");
+  const gauge = $("gauge") ? $("gauge").getContext("2d") : null; // (the feet dial was removed from the HUD)
 
   function drawGauge() {
+    if (!gauge) return;
     const W = 160, c = W / 2, R = 62;
     const g = gauge;
     g.clearRect(0, 0, W, W);
@@ -568,7 +570,7 @@
     if ($("hud-L")) $("hud-L").textContent = game.L.toFixed(4);
 
     const modeText = { challenge: `Challenge · Level ${game.level + 1}`, free: "Free drop", float: "Zero-g practice", watch: "Watch the cat" }[game.mode];
-    $("hud-mode").textContent = modeText + (zeroG() ? " · zero g" : "") + (game.demo && game.mode !== "watch" ? " · demo" : "");
+    if ($("hud-mode")) $("hud-mode").textContent = modeText + (zeroG() ? " · zero g" : "") + (game.demo && game.mode !== "watch" ? " · demo" : "");
 
     const bar = $("time-bar");
     if ($("hud-time-label")) $("hud-time-label").textContent = zeroG() ? "Weightless time" : "Time to impact";
@@ -577,20 +579,20 @@
       const dur = FC.sim.ZERO_G_SECONDS, left = game.zg ? Math.max(0, dur - game.zg.t) : dur;
       bar.style.width = `${(100 * left) / dur}%`;
       bar.style.background = "#5fb3f0";
-      $("hud-time").textContent = game.phase === "ready" ? `${dur} s of weightlessness` : `${left.toFixed(1)} s of zero g left`;
-      $("hud-height").textContent = "";
+      if ($("hud-time")) $("hud-time").textContent = game.phase === "ready" ? `${dur} s of weightlessness` : `${left.toFixed(1)} s of zero g left`;
+      if ($("hud-height")) $("hud-height").textContent = "";
     } else if (game.mode === "float") {
       bar.style.width = "100%";
       bar.style.background = "#5fb3f0";
-      $("hud-time").textContent = "no gravity";
-      $("hud-height").textContent = "";
+      if ($("hud-time")) $("hud-time").textContent = "no gravity";
+      if ($("hud-height")) $("hud-height").textContent = "";
     } else {
       const left = Math.max(0, game.tTotal - game.t);
       const frac = game.phase === "landed" ? 0 : left / game.tTotal;
       bar.style.width = `${frac * 100}%`;
       bar.style.background = frac < 0.25 ? "#ef5d5d" : "#f29a3a";
-      $("hud-time").textContent = game.phase === "ready" ? `${game.tTotal.toFixed(2)} s fall` : `${left.toFixed(2)} s left`;
-      $("hud-height").textContent = `${Math.max(0, game.pos[1]).toFixed(game.pos[1] >= 10 ? 0 : 2)} m`;
+      if ($("hud-time")) $("hud-time").textContent = game.phase === "ready" ? `${game.tTotal.toFixed(2)} s fall` : `${left.toFixed(2)} s left`;
+      if ($("hud-height")) $("hud-height").textContent = `${Math.max(0, game.pos[1]).toFixed(game.pos[1] >= 10 ? 0 : 2)} m`;
     }
     const speed = game.phase === "falling" ? game.vy : game.phase === "absorbing" ? game.absorb.v : 0;
     if ($("hud-speed")) $("hud-speed").textContent = `${speed.toFixed(1)} m/s (${(speed * 3.6).toFixed(0)} km/h)`;
@@ -678,12 +680,12 @@
     el.classList.toggle("done", !active);
     $("nar-title").textContent = active ? st.title : "What the cat did";
     $("nar-body").textContent = active ? st.body
-      : `Each step below turned the cat using only changes of shape: its total angular momentum stayed zero the whole ${game.zg ? "time" : "way down"}.`;
-    $("nar-live").textContent = st.live;
-    $("nar-more").href = `physics.html#${active ? st.more : "moves"}`;
+      : `The cat turned using only changes of shape: its total angular momentum stayed zero the whole ${game.zg ? "time" : "way down"}.`;
+    if ($("nar-live")) $("nar-live").textContent = st.live;
+    if ($("nar-more")) $("nar-more").href = `physics.html#${active ? st.more : "moves"}`;
     const items = nar.timeline.slice(-8).map((e, i, arr) =>
       `<li${active && i === arr.length - 1 ? ' class="now"' : ""}>${e.t === null ? "" : `<b>${e.t.toFixed(2)} s</b> `}${e.title}</li>`).join("");
-    if ($("nar-timeline").innerHTML !== items) $("nar-timeline").innerHTML = items;
+    if ($("nar-timeline") && $("nar-timeline").innerHTML !== items) $("nar-timeline").innerHTML = items;
     return true;
   }
 
@@ -1101,7 +1103,7 @@
   }
   const lessonsHomeOpen = () => !$("lessons-home").classList.contains("closed");
   $("menu-lessons").addEventListener("click", openLessonsHome);
-  $("panel-lessons").addEventListener("click", (e) => { e.preventDefault(); openLessonsHome(); });
+  if ($("panel-lessons")) $("panel-lessons").addEventListener("click", (e) => { e.preventDefault(); openLessonsHome(); });
   $("lh-start").addEventListener("click", () => startLesson(1));
   $("lh-continue").addEventListener("click", () => { const d = FC.lessons.progress(); startLesson((FC.lessons.LESSONS.find((x) => !d[x.id]) || {}).id || 1); });
   $("lh-list").addEventListener("click", (e) => { const b = e.target.closest("button[data-id]"); if (b) startLesson(+b.dataset.id); });

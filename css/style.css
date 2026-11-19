@@ -66,7 +66,6 @@ button.primary kbd { background: rgba(0,0,0,0.12); border-color: rgba(0,0,0,0.2)
   #stage-drop { display: block; position: absolute; right: 10px; bottom: 84px; z-index: 5; padding: 12px 26px;
     font-size: 17px; border-radius: 999px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
   #stage-drop[hidden] { display: none; }
-  #hint { display: none; }
 }
 .dial-wrap { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
 .dial { width: 112px; height: 112px; cursor: grab; touch-action: none; }
@@ -88,7 +87,6 @@ code { font-size: 12px; color: var(--text); }
 .hud-label { font-size: 11px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.8px; }
 .bar { height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden; margin-top: 4px; }
 #time-bar { height: 100%; width: 100%; background: var(--accent); transition: background 0.2s; }
-#gauge { display: block; width: 160px; height: 160px; margin: 8px auto 0; }
 .tag.front b { color: var(--front); }
 .tag.back b { color: var(--back); }
 
@@ -105,7 +103,6 @@ code { font-size: 12px; color: var(--text); }
   padding: 8px 14px; border-radius: 999px; background: rgba(242, 154, 58, 0.92); color: var(--accent-ink);
   font-weight: 600; font-size: 15px; text-align: center; pointer-events: none; }
 #coach.hidden { display: none; }
-#chart { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto 12px; }
 #watch-setup { margin-top: 4px; }
 .mode-hidden { display: none !important; }
 .check { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; color: var(--muted); font-size: 13px; cursor: pointer; }
@@ -116,8 +113,8 @@ input[type=range]:disabled { opacity: 0.5; }
 .panel-head .small-btn { margin: 0; }
 
 /* ---------- main menu: buttons laid over the full-screen cat scene ---------- */
-body.menu-open #panel, body.menu-open #hud, body.menu-open #coach, body.menu-open #banner,
-body.menu-open #views, body.menu-open #hint { display: none; }
+body.menu-open #panel, body.menu-open #hud, body.menu-open #coach, body.menu-open #banner { display: none; }
+
 #menu { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; justify-content: space-between;
   pointer-events: none; padding: 22px 20px 20px; text-align: center;
   background: linear-gradient(180deg, rgba(18,21,28,0.7) 0%, rgba(18,21,28,0) 22%, rgba(18,21,28,0) 48%, rgba(18,21,28,0.88) 72%); }
@@ -159,7 +156,7 @@ body.menu-open #views, body.menu-open #hint { display: none; }
 #speedbar #pause.paused { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 #speedbar input[type=range] { width: 130px; margin: 0; }
 #speed-bar-out { min-width: 46px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
-#speedbar.locked input, #speedbar.locked .speed-presets { opacity: 0.4; pointer-events: none; }
+#speedbar.locked input { opacity: 0.4; pointer-events: none; }
 body.menu-open #speedbar, #banner:not(.hidden) ~ #speedbar { display: none; } /* out of the way of the landing report */
 /* Narrow screens: a shorter bar. */
 @media (max-width: 760px) { #speedbar { bottom: 40px; gap: 5px; padding: 5px 8px; } #speedbar input[type=range] { width: 80px; }
@@ -173,36 +170,22 @@ body.menu-open #speedbar, #banner:not(.hidden) ~ #speedbar { display: none; } /*
 #narrator.hidden { display: none; }
 .nar-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 #nar-title { font-weight: 700; font-size: 15px; color: var(--accent); }
-#nar-more { color: var(--muted); font-size: 12px; white-space: nowrap; }
-#nar-more:hover { color: var(--text); }
 #nar-body { margin-top: 4px; color: #d6dbe4; line-height: 1.45; }
-#nar-live { margin-top: 6px; color: var(--text); font-variant-numeric: tabular-nums; font-size: 12px; }
-#nar-timeline { margin: 8px 0 0; padding: 6px 0 0 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
-#nar-timeline:empty { display: none; }
-#nar-timeline li { margin: 1px 0; }
-#nar-timeline li b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
-#nar-timeline li.now { color: var(--text); }
-.nar-tip { margin-top: 6px; font-size: 11px; color: #6f7a8d; }
-#narrator.done .nar-tip, #narrator.done #nar-live { display: none; }
+
 body.menu-open #narrator { display: none; }
 
-#hint { position: absolute; bottom: 10px; left: 12px; font-size: 12px; color: rgba(255,255,255,0.7); pointer-events: none; }
-#views { position: absolute; bottom: 8px; right: 10px; display: flex; gap: 6px; }
-#views button { padding: 4px 10px; font-size: 12px; background: rgba(18,21,28,0.7); }
 
 @media (max-width: 760px) {
   #app { flex-direction: column; height: auto; }
   #stage { height: 62vh; flex: none; }
   #panel { width: 100%; border-left: 0; border-top: 1px solid var(--line); }
   #hud { width: 150px; padding: 8px; }
-  #gauge { width: 110px; height: 110px; }
   #coach { left: 172px; font-size: 13px; }
   /* Narrator: a short strip across the bottom of the scene (no timeline or tip on phones). */
   #narrator { left: 8px; right: 8px; width: auto; bottom: 76px; max-height: 38%; padding: 7px 10px; font-size: 12px; }
   #nar-title { font-size: 13px; }
   #nar-body { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-  #nar-live { margin-top: 3px; }
-  #nar-timeline, .nar-tip { display: none; }
+
   #banner:not(.hidden) ~ #narrator { display: none; }
 }
 
@@ -396,7 +379,6 @@ body.menu-open #lesson-viz { display: none; }
 #banner { z-index: 7; } /* the landing result sits above the plots */
 .pl-block canvas { display: block; width: 100%; height: 74px; }
 /* The camera-view buttons sit under the plots' column; the lesson card stops above it. */
-body.plots-on #views { right: 12px; bottom: 10px; }
 @media (min-width: 761px) {
   body.plots-on #lesson-card { min-height: 0; }
 }
@@ -436,7 +418,6 @@ details { margin: 4px 0; }
 #hud-mode { font-size: 13px; }
 .bar { height: 5px; margin-top: 5px; }
 .hud-row.small { font-size: 11px; margin-top: 3px; }
-#gauge { width: 104px; height: 104px; margin: 2px auto 0; }
 #coach { top: 8px; left: 166px; padding: 6px 12px; font-size: 14px; }
 #banner { padding: 12px 16px; }
 #banner-title { font-size: 22px; }
@@ -444,10 +425,7 @@ details { margin: 4px 0; }
 #lesson-viz { left: 8px; bottom: 50px; }
 #speedbar { bottom: 8px; gap: 6px; padding: 4px 8px; }
 #speedbar input[type=range] { width: 100px; }
-#views { right: 8px; bottom: 8px; gap: 4px; }
-#views button { padding: 3px 8px; font-size: 11px; }
 #plots { top: 8px; right: 8px; bottom: auto; width: 190px; gap: 3px; } /* top right of the scene */
-body.plots-on #views { right: 8px; bottom: 8px; }
 .pl-block { padding: 3px 7px 2px; border-radius: 8px; }
 .pl-head { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 0 8px; }
 .pl-title { font-size: 11.5px; white-space: nowrap; }
@@ -456,12 +434,11 @@ body.plots-on #views { right: 8px; bottom: 8px; }
 .pl-block canvas { height: 36px; }
 body.plots-on #coach { right: 206px; } /* the coach hint stays clear of the plots */
 @media (min-width: 761px) { body.plots-on #lesson-card { top: var(--plots-h, 190px); max-height: calc(100% - var(--plots-h, 190px) - 60px); } }
-@media (hover: none), (pointer: coarse) { #stage-drop { bottom: 44px; } }
+@media (hover: none), (pointer: coarse) { #stage-drop { bottom: 8px; } } /* bottom right, where the camera buttons were */
 
 @media (max-width: 760px) {
   #hud { top: 6px; left: 6px; width: 124px; padding: 5px 7px; }
   #hud-mode { font-size: 12px; }
-  #gauge { width: 80px; height: 80px; }
   #coach { top: 6px; left: 136px; right: 6px; padding: 5px 10px; font-size: 12px; }
   #narrator { left: 6px; right: 6px; width: auto; bottom: 44px; padding: 6px 8px; }
   #lesson-viz { left: 6px; bottom: 44px; }
@@ -469,8 +446,6 @@ body.plots-on #coach { right: 206px; } /* the coach hint stays clear of the plot
   body.plots-on #speedbar { left: 6px; }
   #speedbar input[type=range] { width: 56px; }
   #speed-bar-out { min-width: 34px; }
-  #views button { padding: 3px 6px; }
-  #views { right: 6px; bottom: 6px; }
   #plots { top: 6px; right: 6px; bottom: auto; width: 38%; gap: 3px; }
   /* the coach hint moves to the bottom of the scene while the plots hold the top right */
   body.plots-on #coach { top: auto; bottom: 44px; left: 6px; right: 6px; }
@@ -496,7 +471,6 @@ body.menu-open #stage-menu { display: none; }
 @media (max-width: 760px) {
   #stage-menu { left: 6px; bottom: 6px; padding: 5px 11px; font-size: 13px; }
   #speedbar, body.plots-on #speedbar { left: 82px; }
-  .speed-presets { display: none; } /* phones: pause + slider only, to fit beside Menu */
   #speedbar input[type=range] { width: 60px; }
 }
 @media (max-width: 760px) {
