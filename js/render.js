@@ -717,9 +717,17 @@ FC.Renderer = class {
     this.camera.updateProjectionMatrix();
   }
 
+  // Overlays covering the right side of the scene (lesson card, live plots), px wide: the view slides
+  // sideways so the body sits in the middle of the open space to their left instead of under them.
+  setRightInset(px) { this.insetTarget = px; }
+
   render() {
     const now = performance.now(), dt = Math.min(0.05, (now - this.lastT) / 1000);
     this.lastT = now;
+    this.inset = (this.inset || 0) + ((this.insetTarget || 0) - (this.inset || 0)) * Math.min(1, dt * 6); // glide, don't jump
+    const cw = this.container.clientWidth, ch = this.container.clientHeight;
+    if (this.inset > 0.5 && cw > 0) this.camera.setViewOffset(cw, ch, this.inset / 2, 0, cw, ch);
+    else if (this.camera.view && this.camera.view.enabled) this.camera.clearViewOffset();
     const { theta, phi, dist, target } = this.orbit;
     const camY = Math.max(0.05, target.y + dist * Math.cos(phi));
     this.camera.position.set(target.x + dist * Math.sin(phi) * Math.sin(theta), camY, target.z + dist * Math.sin(phi) * Math.cos(theta));

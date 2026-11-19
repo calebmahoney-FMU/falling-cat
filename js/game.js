@@ -941,6 +941,19 @@
 
   // ---------- main loop ----------
   let last = performance.now();
+  // How much of the scene's right side the open lesson card and the live plots cover (px), so the
+  // view can centre the body in the space left of them. Computers only: on phones the card sits on top.
+  function rightInset() {
+    if (menu.open || innerWidth <= 760) return 0;
+    const stage = $("stage").getBoundingClientRect();
+    let left = stage.right;
+    for (const el of [$("lesson-card"), $("plots")]) {
+      if (el.hidden || el.classList.contains("folded")) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width) left = Math.min(left, r.left);
+    }
+    return Math.max(0, stage.right - left + 8);
+  }
   function frame(now) {
     const realDt = Math.min(0.05, (now - last) / 1000);
     last = now;
@@ -955,6 +968,7 @@
     renderer.updateCat(game.shape, game.R, game.pos);
     renderer.setWind(!menu.open && game.phase === "falling" ? game.vy : 0); // wind streaks grow with falling speed
     renderer.setTargetY(menu.open ? MENU_TARGET_Y : Math.max(0.35, game.pos[1]), true);
+    renderer.setRightInset(rightInset());
     renderer.render();
     controls.show(game.shape);
     touchpad.show(game.shape);
@@ -1038,8 +1052,10 @@
       this.start({ model: "0", mode: "float", inputs: { speed: 0.5 } });
       if (game.model !== FC.models[i]) setModel("0"); // already Model 0 but another leg mass: rebuild
       lessonR0 = game.R.slice();
-      // Broadside view (its long axis runs left-right on screen), a little further back on narrow screens.
-      Object.assign(renderer.orbit, { theta: 0.35, phi: 1.33, dist: innerWidth < 760 ? 2.0 : 1.5 });
+      // Broadside view (its long axis runs left-right on screen), further back when the open space is
+      // narrow: on computers the lesson card and plots take about 240 px on the right.
+      const free = $("stage").clientWidth - (innerWidth <= 760 ? 0 : 240);
+      Object.assign(renderer.orbit, { theta: 0.35, phi: 1.33, dist: Math.min(3, Math.max(1.5, (1.5 * 560) / Math.max(free, 200))) });
     },
     get model() { return game.model; },
     get m0() { return game.model.m0; },
