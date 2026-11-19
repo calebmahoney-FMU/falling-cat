@@ -6,7 +6,7 @@
 // Everything runs inside the game (index.html). The game passes an `api`:
 //   game, start({ model, mode, inputs }), landings (one record per landing: model, mode,
 //   height, worst, bend, legs, impact, v, d, demo, optimized, n), set(id, value)
-//   Model 0 (lessons 1–3): useModel0(legMass), s (shape), st (FC.physics.state now),
+//   Model 0 (lessons 1–4): useModel0(legMass), s (shape), st (FC.physics.state now),
 //   net() (rotation vector of the back cylinder since the lesson started, world frame)
 //   toWorld(p) (a point in the body frame → world), fx: { ghost(on), line(a, b), glow(i), ring(on) }
 // Progress is kept in this browser (localStorage).
@@ -14,9 +14,18 @@ var FC = (globalThis.FC = globalThis.FC || {});
 
 FC.lessons = (function () {
   const deg = Math.PI / 180;
-  const KEY = "fallingcat.lessons";
-  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+  const KEY = "fallingcat.lessons", VKEY = "fallingcat.lessons.v";
   const save = (p) => { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch {} };
+  const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+  // Version 2 (Nov 2026) put two lessons between 3 and 4, so old lessons 4–7 are now 6–9: move saved progress once.
+  try {
+    if (localStorage.getItem(VKEY) !== "2") {
+      const p = read(), q = {};
+      for (const k in p) q[+k >= 4 ? +k + 2 : k] = p[k];
+      save(q); localStorage.setItem(VKEY, "2");
+    }
+  } catch {}
+  const load = read;
   const f = (x, d = 0) => (Math.abs(x) < 0.5 * 10 ** -d ? 0 : x).toFixed(d);
 
   // Landings since a step began (cat lessons).
@@ -24,6 +33,38 @@ FC.lessons = (function () {
   const beginLandings = (api, mem) => { mem.from = api.landings.length; };
   const J1 = (api) => FC.model0.eigenSym(api.st.J).values[0]; // smallest principal moment: about the (near) long axis
   const rolled = (api) => 180 - Math.abs(FC.sim.rollError(api.game.R)) / deg; // a cat dropped upside down: how far it has turned over
+  const legsText = (s) => `front legs ${s.front < 0.2 ? "tucked" : s.front > 0.8 ? "spread" : "half"}, back ${s.back < 0.2 ? "tucked" : s.back > 0.8 ? "spread" : "half"}`;
+
+  // Lesson 4: one Model 0 loop per step. A loop counts once the body has been folded and twisted at the same
+  // time and is back at the start shape; its turn is the rotation since the step began (body frame), and it
+  // must go the same way as the first loop (twisting before folding runs the loop backwards and undoes a turn).
+  const turnSince = (api, R0) => FC.m3.log(FC.m3.mul(FC.m3.T(R0), api.game.R)); // body-frame rotation vector
+  function loopStep(k) {
+    return {
+      text: `Loop ${k}: fold, twist, unfold, untwist.`,
+      begin(api, mem) { mem.R0 = api.game.R.slice(); mem.corner = false; mem.warn = ""; },
+      status(api, mem) {
+        const s = api.s, total = `${f(FC.m3.v.norm(api.net()) / deg)}° so far`;
+        if (mem.warn) return `${mem.warn} · ${total}`;
+        const next = !mem.corner ? (Math.abs(s.alpha) < 60 * deg ? "fold the leg (α to ±90°)" : "twist (ψ to ±180°)")
+          : Math.abs(s.alpha) > 2 * deg ? "unfold the leg (α to 0)" : "untwist (ψ to 0)";
+        return `Now: ${next} · ${total}`;
+      },
+      check(api, mem) {
+        const s = api.s;
+        if (Math.abs(s.alpha) >= 60 * deg && Math.abs(s.psi) >= 60 * deg) { mem.corner = true; mem.warn = ""; }
+        if (!mem.corner || Math.abs(s.psi) > 2 * deg || Math.abs(s.alpha) > 2 * deg) return false;
+        mem.corner = false;
+        const r = turnSince(api, mem.R0), turn = FC.m3.v.norm(r) / deg;
+        if (mem.axis && FC.m3.v.dot(r, mem.axis) < 0) { mem.warn = "That loop ran backwards (twist came first) and undid a turn"; mem.R0 = api.game.R.slice(); return false; }
+        if (turn < 5) { mem.warn = `That loop turned only ${f(turn)}°: fold before you twist`; mem.R0 = api.game.R.slice(); return false; }
+        mem.axis = mem.axis || r;
+        (mem.loops = mem.loops || []).push(turn);
+        mem.total = FC.m3.v.norm(api.net()) / deg;
+        return true;
+      },
+    };
+  }
 
   // ---------- small on-scene visuals (HTML) ----------
   const viz = {
@@ -122,10 +163,51 @@ FC.lessons = (function () {
       takeaway: (api, mem) => `Your body is back in its starting shape, yet it has turned <b>${f(mem.turn)}°</b> from the ghost. Twisting with the leg folded and
         untwisting with it down don't cancel, and that mismatch is the turn: rotating with nothing to push against.`,
     },
-    // ---------------------------------------------------------------- the cats
     {
-      id: 4, title: "Tuck and turn (model A)", tagline: "The light half turns more.",
-      goal: "Turn model A over using only twist and legs.", math: "tuck-turn",
+      id: 4, title: "Turns add up", tagline: "Repeat the loop: each one adds the same turn.",
+      goal: "Do the loop three times. Bigger loops (fold 90°, twist 180°) turn more.", math: "geometry",
+      setup(api) { api.useModel0(0.3); api.fx.ghost(true); },
+      steps: [1, 2, 3].map(loopStep),
+      viz(api, mem) {
+        const loops = mem.loops || [];
+        return viz.dial(FC.m3.v.norm(api.net()) / deg, "turned from the ghost") +
+          `<div class="lv-note">${loops.length ? loops.map((t, i) => `Loop ${i + 1}: <b>${f(t)}°</b>`).join(" · ") : "Each loop's turn shows here."}</div>`;
+      },
+      takeaway: (api, mem) => `Your loops turned ${mem.loops.map((t) => `${f(t)}°`).join(", ")}: together <b>${f(mem.total)}°</b> from the ghost` +
+        (Math.abs(mem.loops.reduce((a, b) => a + b, 0) - mem.total) > 10 ? " (a loop run backwards undid part of it)." : ".") +
+        ` The same loop always gives the same small turn (a full-size one about 39° for this body), so repeating it adds up. That is how a cat gets all the way over.`,
+    },
+    {
+      id: 5, title: "Same trick on a cat", tagline: "Tucked legs do the leg's job. No gravity yet.",
+      goal: "Turn model A from upside down to feet-down, floating with no clock.", math: "tuck-turn",
+      setup(api, mem) {
+        api.start({ model: "A", mode: "float", inputs: { start: "upside", speed: 0.15, "coach-on": true } });
+        mem.r0 = rolled(api);
+      },
+      steps: [
+        { text: "Tuck the front legs <kbd>Z</kbd>, keep the back legs spread <kbd>V</kbd>.", short: "Tuck the front legs, back legs spread.",
+          status: (api) => legsText(api.game.shape), check: (api) => api.game.shape.front < 0.2 && api.game.shape.back > 0.8 },
+        { text: "Twist all the way <kbd>E</kbd> or <kbd>Q</kbd>.", short: "Twist all the way.",
+          status: (api) => `twist ${f(api.game.shape.twist / deg)}°`,
+          check: (api) => Math.abs(api.game.shape.twist) >= 150 * deg && api.game.shape.front < 0.2 },
+        { text: "Swap legs: spread the front <kbd>X</kbd>, tuck the back <kbd>C</kbd>.", short: "Swap legs: front out, back tucked.",
+          status: (api) => legsText(api.game.shape), check: (api) => api.game.shape.front > 0.8 && api.game.shape.back < 0.2 },
+        { text: "Untwist back to 0.", short: "Untwist back to 0.", status: (api) => `twist ${f(api.game.shape.twist / deg)}°`,
+          check(api, mem) { if (Math.abs(api.game.shape.twist) > 5 * deg) return false; mem.cycle = rolled(api) - mem.r0; return true; } },
+        { text: "Repeat, following the coach, until your feet point down.", short: "Repeat until your feet point down.",
+          status: (api) => `${f(180 - rolled(api))}° to go`,
+          check: (api) => rolled(api) >= 160 && Math.abs(api.game.shape.twist) < 10 * deg },
+      ],
+      // the half with tucked legs (the light one) glows
+      frame(api) { const s = api.game.shape; api.fx.glow(Math.abs(s.front - s.back) > 0.4 ? (s.front < s.back ? 0 : 1) : null); },
+      viz: (api) => viz.dial(rolled(api), "turned over (of 180°)", 180),
+      takeaway: (api, mem) => `One tuck, twist, swap, untwist cycle turned the cat <b>${f(mem.cycle)}°</b>. It's Model 0's loop: the tucked legs play the folded leg,
+        making that half light so it turns further. Repeating it got you upright. Next, the same moves while falling, against the clock.`,
+    },
+    // ---------------------------------------------------------------- the cats, falling
+    {
+      id: 6, title: "Now with gravity (model A)", tagline: "Same moves, falling, against the clock.",
+      goal: "Turn model A over while falling, using only twist and legs.", math: "tuck-turn",
       setup(api) { api.start({ model: "A", mode: "free", inputs: { start: "upside", height: 21, speed: 0.15, "air-on": true, "coach-on": true } }); },
       steps: [
         { short: "Drop, then follow the coach. Land on your feet.",
@@ -139,7 +221,7 @@ FC.lessons = (function () {
         <b>64°</b>, so model A needs about three cycles and a long fall (about 12 m from upside down).`,
     },
     {
-      id: 5, title: "Bend and twist (model B)", tagline: "Sweep the bend around: the body rolls.",
+      id: 7, title: "Bend and twist (model B)", tagline: "Sweep the bend around: the body rolls.",
       goal: "Turn model B over by bending and sweeping.", math: "bend-twist",
       setup(api) { api.start({ model: "B", mode: "free", inputs: { start: "upside", height: 3, speed: 0.15, "air-on": true, "coach-on": true } }); api.fx.ring(true); },
       steps: [
@@ -152,7 +234,7 @@ FC.lessons = (function () {
         land from drops <b>about 20× lower</b> than model A.`,
     },
     {
-      id: 6, title: "Landing", tagline: "Same drop, two cats: soft vs hard.",
+      id: 8, title: "Landing", tagline: "Same drop, two cats: soft vs hard.",
       goal: "Compare landing on folding knees with landing on rigid legs.", math: "landing",
       setup(api) { api.start({ model: "C", mode: "watch", inputs: { gravity: "earth", roll: 180, pitch: 0, delay: 60, strategy: "reflex", height: 3, speed: 0.3, "air-on": true } }); },
       steps: [
@@ -171,7 +253,7 @@ FC.lessons = (function () {
         ${f(100 * mem.b.d)} cm, so the hit was <b>${f(mem.b.impact / mem.c.impact)}× gentler</b> (${f(mem.c.impact)}× vs ${f(mem.b.impact)}× body weight).`,
     },
     {
-      id: 7, title: "The flexible spine (model D)", tagline: "Front half first: ready in time.",
+      id: 9, title: "The flexible spine (model D)", tagline: "Front half first: ready in time.",
       goal: "Land perfectly from just 0.5 m.", math: "moves",
       setup(api) { api.start({ model: "D", mode: "watch", inputs: { gravity: "earth", roll: 180, pitch: 0, delay: 0, strategy: "reflex", height: 0.5, speed: 0.3, "air-on": true } }); },
       steps: [

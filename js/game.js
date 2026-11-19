@@ -1030,7 +1030,7 @@
       for (const [id, value] of Object.entries(inputs)) setInput(id, value);
       reset();
     },
-    // Model 0 (lessons 1–3): floating in zero-g practice, level, straight; leg mass as given.
+    // Model 0 (lessons 1–4): floating in zero-g practice, level, straight; leg mass as given.
     useModel0(legMass) {
       const i = FC.models.findIndex((m) => m.id === "0");
       FC.models[i] = FC.makeModel0Game(legMass);
