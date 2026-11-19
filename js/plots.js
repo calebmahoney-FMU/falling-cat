@@ -1,16 +1,19 @@
-// Live plots on the game screen: orientation, angular velocity and angular
-// momentum against time, for any model (Model 0 and the cats).
+// Live plots on the game screen, kept simple: three small charts against time, for any
+// model (Model 0 and the cats), over the last WINDOW seconds of simulated time.
 //
-//   Orientation      roll φ and pitch θ of the body frame, degrees from upright
-//                    (roll: about the long axis; for a cat dropped upside down it
-//                    runs 180° → 0°), unwrapped so it never jumps by 360°.
-//   Angular velocity Ω⃗ of the body frame, its components in the body frame
-//                    (x along the body, y to its left, z along its back), rad/s.
-//   Angular momentum each part's L⃗ᵢ·x̂ (component along the long axis, about the
-//                    system's centre of mass), and the total, which stays at 0.
+//   Tilt θ            how far the body is from upright, degrees: the angle between the
+//                     body's "up" (along its back) and straight up. 180° = upside down,
+//                     0° = feet down. A scalar, so one line.
+//   Turning speed |Ω⃗| how fast the body is rotating, degrees per second (the magnitude
+//                     of its angular velocity vector).
+//   Angular momentum  two parts' angular momentum along the body's long axis, L⃗·x̂, and
+//                     their total, which stays at zero: the two parts always mirror each
+//                     other. The pair is front half vs back half, or body vs legs,
+//                     whichever is doing the work (in a mirror-symmetric bend and twist each
+//                     half's legs cancel its own spin, so front and back are both ~0).
 //
-// Samples are pushed by the game each frame; the plots show the last WINDOW
-// seconds of simulated time and rescale themselves.
+// Samples are pushed by the game each frame:
+//   { t, tilt (deg), speed (deg/s), fb: [front, back], bl: [body, legs], total } (kg·m²/s).
 var FC = (globalThis.FC = globalThis.FC || {});
 
 FC.Plots = class {
@@ -18,67 +21,67 @@ FC.Plots = class {
     this.el = container;
     this.WINDOW = 4; // simulated seconds shown
     this.samples = [];
-    // One line per plot: a short title with its unit, then the legend; the full name is the tooltip.
-    const block = (key, title, unit, full) => `<div class="pl-block" data-k="${key}" title="${full}"><div class="pl-head"><span class="pl-title">${title}
-      <span class="pl-unit">${unit}</span></span><div class="pl-legend"></div></div><canvas></canvas></div>`;
+    // One line per chart: a plain title, a small unit, and (for momentum) a legend; the full meaning is the tooltip.
+    const block = (key, title, unit, full, legend = "") => `<div class="pl-block" data-k="${key}" title="${full}"><div class="pl-head">
+      <span class="pl-title">${title} <span class="pl-unit">${unit}</span></span><div class="pl-legend">${legend}</div></div><canvas></canvas></div>`;
     container.innerHTML =
-      block("ang", "Angle", "°", "Orientation: roll and pitch, degrees from upright") +
-      block("om", `<span class="vc">Ω</span>`, "rad/s", "Angular velocity of the body frame, components in the body frame") +
-      block("L", `<span class="vc">L</span><sub><var>i</var></sub>·<span class="uv">x̂</span>`, "10⁻³ kg·m²/s",
-        "Angular momentum of each part along the body's long axis, and the total");
+      block("tilt", "Tilt", "°", "How far the body is from upright: 180° = upside down, 0° = feet down") +
+      block("speed", "Turning speed", "°/s", "How fast the body is rotating (size of its angular velocity)") +
+      block("L", "Angular momentum", "", "Two parts of the body, along its length: they always cancel, so the total stays 0");
     this.cv = {};
-    container.querySelectorAll(".pl-block").forEach((b) => (this.cv[b.dataset.k] = { canvas: b.querySelector("canvas"), legend: b.querySelector(".pl-legend") }));
-    this.legendKey = {};
+    container.querySelectorAll(".pl-block").forEach((b) => (this.cv[b.dataset.k] = b.querySelector("canvas")));
+    this.legendEl = container.querySelector('[data-k="L"] .pl-legend');
   }
 
-  reset() { this.samples = []; this.prevRoll = null; this.rollOffset = 0; }
+  get C() { return { line: "#ffd36b", front: "#f29a3a", back: "#5fb3f0", legs: "#7ee787", total: "#ffffff" }; }
 
-  // s: { t, roll, pitch (rad), omega [x, y, z] (rad/s), parts: [{ name, color, Lx }], Ltot (kg·m²/s) }
+  // The momentum chart's legend: the two parts shown, then the total (rebuilt only when it changes).
+  legend(names, cols) {
+    const key = [...names, ...cols].join("|");
+    if (key === this.legendKey) return;
+    this.legendKey = key;
+    const item = (c, n) => `<span><i style="--c:${c}"></i>${n}</span>`;
+    this.legendEl.innerHTML = item(cols[0], names[0]) + item(cols[1], names[1]) + item(this.C.total, "total");
+  }
+
+  reset() { this.samples = []; }
+
   push(s) {
-    // unwrap the roll so a turn through ±180° stays continuous
-    if (this.prevRoll !== null) {
-      const d = s.roll - this.prevRoll;
-      if (d > Math.PI) this.rollOffset -= 2 * Math.PI; else if (d < -Math.PI) this.rollOffset += 2 * Math.PI;
-    }
-    this.prevRoll = s.roll;
     const last = this.samples[this.samples.length - 1];
     if (last && s.t <= last.t) return; // time didn't advance (paused)
-    this.samples.push({ ...s, roll: s.roll + this.rollOffset });
+    this.samples.push(s);
     const t0 = s.t - this.WINDOW;
     while (this.samples.length > 2 && this.samples[1].t < t0) this.samples.shift();
   }
 
   draw() {
-    if (this.el.hidden || !this.samples.length) { if (!this.samples.length) for (const k in this.cv) this.clear(k); return; }
-    const S = this.samples, deg = 180 / Math.PI;
-    // Shift the unwrapped roll by whole turns so the newest value reads between -180° and 180°.
-    const turn = 2 * Math.PI * Math.round(S[S.length - 1].roll / (2 * Math.PI));
-    const tEnd = S[S.length - 1].t, tStart = Math.max(S[0].t, tEnd - this.WINDOW);
-    this.plot("ang", tStart, tEnd, [
-      { name: "roll φ", color: "#ffd36b", get: (p) => (p.roll - turn) * deg },
-      { name: "pitch θ", color: "#9fd4ff", get: (p) => p.pitch * deg },
-    ], 30);
-    this.plot("om", tStart, tEnd, [
-      { name: "Ωx", color: "#ff7b72", get: (p) => p.omega[0] },
-      { name: "Ωy", color: "#7ee787", get: (p) => p.omega[1] },
-      { name: "Ωz", color: "#79c0ff", get: (p) => p.omega[2] },
-    ], 1);
-    const parts = S[S.length - 1].parts;
-    this.plot("L", tStart, tEnd, [
-      // back parts dashed: in a mirror-symmetric move they lie exactly on their front partners
-      ...parts.map((q, i) => ({ name: q.name, color: q.color, dash: /^back/.test(q.name), get: (p) => (p.parts[i] ? p.parts[i].Lx * 1e3 : 0) })),
-      { name: "total", color: "#ffffff", width: 2.5, get: (p) => p.Ltot * 1e3 },
-    ], 1);
+    if (this.el.hidden || !this.samples.length) return;
+    const S = this.samples, C = this.C;
+    const t1 = S[S.length - 1].t, t0 = Math.max(S[0].t, t1 - this.WINDOW);
+    // Tilt: fixed 0–180° so the line's height reads directly (top = upside down, bottom = feet down).
+    this.plot("tilt", t0, t1, { lo: 0, hi: 180, ticks: [[180, "180"], [90, "90"], [0, "0"]] },
+      [{ color: C.line, get: (p) => p.tilt, width: 2.2 }]);
+    // Turning speed: from 0 up to the largest so far.
+    const top = Math.max(90, ...S.map((p) => p.speed)) * 1.1;
+    this.plot("speed", t0, t1, { lo: 0, hi: top, ticks: [[top / 1.1, (top / 1.1).toFixed(0)], [0, "0"]] },
+      [{ color: C.line, get: (p) => p.speed, width: 2.2 }]);
+    // Momentum: the pair that is doing the work (front vs back, or body vs legs), filled so their
+    // mirror image is easy to see, and the total. Symmetric about 0.
+    const size = (k) => S.reduce((a, p) => a + Math.abs(p[k][0]) + Math.abs(p[k][1]), 0);
+    const k = size("bl") > 1.5 * size("fb") ? "bl" : "fb";
+    const names = k === "fb" ? ["front", "back"] : ["body", "legs"], cols = k === "fb" ? [C.front, C.back] : [C.front, C.legs];
+    this.legend(names, cols);
+    const m = Math.max(1e-4, ...S.map((p) => Math.max(Math.abs(p[k][0]), Math.abs(p[k][1])))) * 1.15;
+    this.plot("L", t0, t1, { lo: -m, hi: m, ticks: [[0, "0"]] }, [
+      { color: cols[0], get: (p) => p[k][0], fill: true },
+      { color: cols[1], get: (p) => p[k][1], fill: true },
+      { color: C.total, get: (p) => p.total, width: 2 },
+    ]);
   }
 
-  clear(k) {
-    const { canvas } = this.cv[k], g = canvas.getContext("2d");
-    g.clearRect(0, 0, canvas.width, canvas.height);
-  }
-
-  // One small chart: zero line, symmetric autoscale (at least ±minSpan), time axis = the window.
-  plot(k, t0, t1, series, minSpan) {
-    const { canvas, legend } = this.cv[k];
+  // One small chart. range: { lo, hi, ticks: [[value, label], …] }; series: { color, get, width, fill }.
+  plot(k, t0, t1, range, series) {
+    const canvas = this.cv[k];
     const dpr = Math.min(2, devicePixelRatio || 1), W = canvas.clientWidth, H = canvas.clientHeight;
     if (!W || !H) return;
     if (canvas.width !== Math.round(W * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
@@ -86,28 +89,26 @@ FC.Plots = class {
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, W, H);
     const S = this.samples.filter((p) => p.t >= t0);
-    let lo = Infinity, hi = -Infinity;
-    for (const p of S) for (const s of series) { const y = s.get(p); if (y < lo) lo = y; if (y > hi) hi = y; }
-    const span = Math.max(minSpan, Math.abs(lo), Math.abs(hi)) * 1.12;
-    const L = 30, R = 4, T = 4, B = 4, pw = W - L - R, ph = H - T - B;
-    const x = (t) => L + ((t - t0) / Math.max(1e-6, t1 - t0)) * pw, y = (v) => T + ph / 2 - (v / span) * (ph / 2);
-    // axes: zero line and the scale
-    g.strokeStyle = "rgba(255,255,255,0.18)"; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(L, y(0)); g.lineTo(L + pw, y(0)); g.stroke();
-    g.fillStyle = "rgba(255,255,255,0.55)"; g.font = "10px system-ui, sans-serif"; g.textAlign = "right"; g.textBaseline = "middle";
-    const nice = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(1));
-    g.fillText(nice(span / 1.12), L - 4, y(span / 1.12)); g.fillText("0", L - 4, y(0)); g.fillText(nice(-span / 1.12), L - 4, y(-span / 1.12));
+    const L = 26, R = 4, T = 5, B = 4, pw = W - L - R, ph = H - T - B;
+    const x = (t) => L + ((t - t0) / Math.max(1e-6, t1 - t0)) * pw;
+    const y = (v) => T + ph * (1 - (Math.max(range.lo, Math.min(range.hi, v)) - range.lo) / (range.hi - range.lo));
+    g.font = "9.5px system-ui, sans-serif"; g.textAlign = "right"; g.textBaseline = "middle";
+    for (const [v, label] of range.ticks) {
+      g.strokeStyle = v === 0 ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.1)"; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(L, y(v)); g.lineTo(L + pw, y(v)); g.stroke();
+      g.fillStyle = "rgba(255,255,255,0.55)"; g.fillText(label, L - 4, y(v));
+    }
+    if (S.length < 2) return;
+    const y0 = y(Math.max(range.lo, Math.min(range.hi, 0)));
     for (const s of series) {
-      g.strokeStyle = s.color; g.lineWidth = s.width || 1.6; g.setLineDash(s.dash ? [5, 4] : []); g.beginPath();
+      if (s.fill) { // shaded area between the line and zero
+        g.fillStyle = s.color + "55"; g.beginPath(); g.moveTo(x(S[0].t), y0);
+        for (const p of S) g.lineTo(x(p.t), y(s.get(p)));
+        g.lineTo(x(S[S.length - 1].t), y0); g.closePath(); g.fill();
+      }
+      g.strokeStyle = s.color; g.lineWidth = s.width || 1.5; g.beginPath();
       S.forEach((p, i) => (i ? g.lineTo(x(p.t), y(s.get(p))) : g.moveTo(x(p.t), y(s.get(p)))));
       g.stroke();
-    }
-    g.setLineDash([]);
-    // legend (only rebuilt when the series change)
-    const key = series.map((s) => s.name + s.color).join("|");
-    if (this.legendKey[k] !== key) {
-      this.legendKey[k] = key;
-      legend.innerHTML = series.map((s) => `<span><i class="${s.dash ? "dash" : ""}" style="--c:${s.color}"></i>${s.name}</span>`).join("");
     }
   }
 };

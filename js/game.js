@@ -982,25 +982,27 @@
   }
 
   // ---------- live plots (right side of the scene) ----------
-  // Each part's colour: Model 0 as drawn (front orange, back blue, leg green); cats by front/back.
-  const PART_COLORS = { "front cylinder": "#e8833a", "back cylinder": "#2a78d6", leg: "#1baf7a",
-    "front half": "#e8833a", "front legs": "#f5b97a", "back half": "#3987e5", "back legs": "#8fbff5",
-    chest: "#e8833a", waist: "#c678dd", hips: "#3987e5" };
   let plotsH = 0; // last height of the plots column (px)
   function updatePlots() {
     if (!plots) return;
     // Shown only once there is something to plot (not while setting up a drop).
     const want = $("plots-on").checked && !menu.open;
     if (want && (game.phase === "falling" || game.phase === "float")) {
-      // L of each part about the system's centre of mass, component along the body's long axis x̂ (body frame)
+      // Tilt: angle between the body's up (its z axis, along the back; world-up when upright) and world up.
+      // With R the body→world rotation (row-major), the world-up (y) part of the body's z axis is R[5].
+      const tilt = Math.acos(Math.max(-1, Math.min(1, game.R[5]))) / deg;
+      const O = game.Omega || [0, 0, 0], speed = Math.hypot(O[0], O[1], O[2]) / deg; // |Ω⃗|, °/s
+      // Angular momentum along the body's long axis x̂, about the centre of mass, split two ways:
+      // front half vs back half (by where each body's centre of mass sits, x > 0 = front), and
+      // body vs legs. The plot shows whichever pair is doing the work: in a mirror-symmetric move
+      // (bend and twist) each half's legs cancel its own spin, so front and back are both ~0.
       const st = FC.physics.state(game.model, game.shape, game.sdot || {});
-      const parts = [];
+      let front = 0, back = 0, body = 0, legs = 0;
       for (const b of st.bodies) {
-        let p = parts.find((q) => q.name === b.part);
-        if (!p) parts.push((p = { name: b.part, color: PART_COLORS[b.part] || "#cccccc", Lx: 0 }));
-        p.Lx += b.L[0];
+        if (b.r[0] >= 0) front += b.L[0]; else back += b.L[0];
+        if (/leg/.test(b.part || "")) legs += b.L[0]; else body += b.L[0];
       }
-      plots.push({ t: game.clock, roll: rollError(), pitch: pitchError(), omega: game.Omega || [0, 0, 0], parts, Ltot: st.L[0] });
+      plots.push({ t: game.clock, tilt, speed, fb: [front, back], bl: [body, legs], total: st.L[0] });
     }
     const show = want && plots.samples.length > 0;
     $("plots").hidden = !show;
