@@ -390,8 +390,17 @@ FC.Renderer = class {
   makeGhost() {
     this.ghostPending = false;
     if (!this.cat) return;
-    // A light-blue see-through shell, a touch larger than the body so it shows even where they overlap.
-    const mat = new THREE.MeshBasicMaterial({ color: 0x9fd4ff, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.BackSide });
+    // A see-through blue shell, a touch larger than the body so it shows even where they overlap.
+    // Faint in the middle and bright toward its outline (a rim glow), so its shape stands out against
+    // the body, the pale building and the sky. Colour written as-is (display blue).
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { color: { value: new THREE.Vector3(0.36, 0.68, 1.0) } },
+      vertexShader: `varying vec3 vN; varying vec3 vV;
+        void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `uniform vec3 color; varying vec3 vN; varying vec3 vV;
+        void main() { float rim = 1.0 - abs(dot(normalize(vN), normalize(vV))); gl_FragColor = vec4(color, 0.16 + 0.8 * pow(rim, 1.6)); }`,
+      transparent: true, depthWrite: false,
+    });
     const g = this.cat.root.clone(true);
     const grow = new THREE.Matrix4().makeScale(1.06, 1.06, 1.06);
     g.traverse((o) => {
