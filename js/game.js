@@ -334,12 +334,13 @@
     // In Watch mode the cat holds its starting pose until its reflex kicks in.
     const delayS = +$("delay").value / 1000;
 
-    // No gravity and the player in control (zero-g practice, Model 0 lessons): the body follows the
-    // sliders at once, with no muscle-speed limit, so nothing lags behind the controls. With zero angular
-    // momentum the turn depends only on the path through shape space, not on how fast it is travelled,
-    // so this changes no physics. Big moves are split into sub-steps of at most 2° (0.02 for legs) to
-    // keep the integration as accurate as at normal speed. Falling keeps the muscle limit (fair play).
-    const direct = game.phase === "float" && !game.demo;
+    // The player in control with no clock running (zero-g practice, Model 0 lessons, and posing before
+    // a drop): the body follows the sliders at once, with no muscle-speed limit, so nothing lags behind
+    // the controls. With zero angular momentum the turn depends only on the path through shape space,
+    // not on how fast it is travelled, so this changes no physics. Big moves are split into sub-steps of
+    // at most 2° (0.02 for legs) to keep the integration as accurate as at normal speed. While falling the
+    // muscle limit stays: a real cat can't change shape instantly, and the race against the ground is the game.
+    const direct = (game.phase === "float" || game.phase === "ready") && !game.demo;
     let n = Math.max(1, Math.ceil(simDt / SUBSTEP));
     if (direct) {
       for (const c of game.model.controls) {
@@ -582,9 +583,10 @@
   }
 
   function updateHud() {
-    const [aF, aB] = feetAngles().map((a) => a / deg);
-    $("ang-front").textContent = `${aF.toFixed(0)}°`;
-    $("ang-back").textContent = `${aB.toFixed(0)}°`;
+    // The HUD is just the time bar: shown only when a clock is running (not in zero-g practice or Model 0).
+    const hudOn = !menu.open && game.mode !== "float" && game.model.kind !== "model0";
+    $("hud").hidden = !hudOn;
+    document.body.classList.toggle("hud-on", hudOn);
     // Measured independently from every body's motion over a sub-step (a finite difference,
     // so it reads ~1e-6 of the parts' own angular momenta, not exactly 0). kg·m²/s.
     if ($("hud-L")) $("hud-L").textContent = game.L.toFixed(4);
@@ -629,6 +631,14 @@
     if (show)
       coach.textContent = watch ? (zeroG() ? `Set the start, then ${go} to let the cat go` : `Set the start, then ${go} to drop the cat`)
         : game.phase === "ready" ? (TOUCH ? "Tap Drop to start" : "Press Space to drop") : game.model.coach(game.shape, pilotInfo(), TOUCH);
+    // Phones: the lesson card runs across the top, just below the time bar and the coach hint.
+    const card = $("lesson-card");
+    if (innerWidth <= 760 && !card.hidden) {
+      const top = $("stage").getBoundingClientRect().top;
+      let b = 8;
+      for (const el of [$("hud"), coach]) if (!el.hidden && !el.classList.contains("hidden")) b = Math.max(b, el.getBoundingClientRect().bottom - top + 6);
+      card.style.top = `${Math.round(b)}px`;
+    } else card.style.top = "";
 
     // On-screen Drop button (touch screens): only while waiting to drop.
     const sd = $("stage-drop");
@@ -961,19 +971,6 @@
 
   // ---------- main loop ----------
   let last = performance.now();
-  // How much of the scene's right side the open lesson card and the live plots cover (px), so the
-  // view can centre the body in the space left of them. Computers only: on phones the card sits on top.
-  function rightInset() {
-    if (menu.open || innerWidth <= 760) return 0;
-    const stage = $("stage").getBoundingClientRect();
-    let left = stage.right;
-    for (const el of [$("lesson-card"), $("plots")]) {
-      if (el.hidden || el.classList.contains("folded")) continue;
-      const r = el.getBoundingClientRect();
-      if (r.width) left = Math.min(left, r.left);
-    }
-    return Math.max(0, stage.right - left + 8);
-  }
   function frame(now) {
     const realDt = Math.min(0.05, (now - last) / 1000);
     last = now;
@@ -988,7 +985,6 @@
     renderer.updateCat(game.shape, game.R, game.pos);
     renderer.setWind(!menu.open && game.phase === "falling" ? game.vy : 0); // wind streaks grow with falling speed
     renderer.setTargetY(menu.open ? MENU_TARGET_Y : Math.max(0.35, game.pos[1]), true);
-    renderer.setRightInset(rightInset());
     renderer.render();
     controls.show(game.shape);
     touchpad.show(game.shape);
@@ -1002,7 +998,6 @@
   }
 
   // ---------- live plots (right side of the scene) ----------
-  let plotsH = 0; // last height of the plots column (px)
   function updatePlots() {
     if (!plots) return;
     // Shown only once there is something to plot (not while setting up a drop).
@@ -1027,12 +1022,7 @@
     const show = want && plots.samples.length > 0;
     $("plots").hidden = !show;
     document.body.classList.toggle("plots-on", show);
-    if (show) {
-      plots.draw();
-      // the lesson card (desktop) starts just under the plots
-      const h = $("plots").offsetHeight + 16;
-      if (h !== plotsH) { plotsH = h; document.body.style.setProperty("--plots-h", `${h}px`); }
-    }
+    if (show) plots.draw();
   }
 
   // Model 0: an arrow for each body's angular momentum L_i (world frame), from the body's centre of mass.
@@ -1074,10 +1064,10 @@
       this.start({ model: "0", mode: "float", inputs: { speed: 0.5 } });
       if (game.model !== FC.models[i]) setModel("0"); // already Model 0 but another leg mass: rebuild
       lessonR0 = game.R.slice();
-      // Broadside view (its long axis runs left-right on screen), further back when the open space is
-      // narrow: on computers the lesson card and plots take about 240 px on the right.
-      const free = $("stage").clientWidth - (innerWidth <= 760 ? 0 : 240);
-      Object.assign(renderer.orbit, { theta: 0.35, phi: 1.33, dist: Math.min(3, Math.max(1.5, (1.5 * 560) / Math.max(free, 200))) });
+      // Broadside view (its long axis runs left-right on screen), centred, and further back on a
+      // narrow scene so the whole body fits between the lesson card (top left) and the plots (top right).
+      const w = $("stage").clientWidth;
+      Object.assign(renderer.orbit, { theta: 0.35, phi: 1.33, dist: Math.min(3, Math.max(1.5, (1.5 * 760) / Math.max(w, 250))) });
     },
     get model() { return game.model; },
     get m0() { return game.model.m0; },

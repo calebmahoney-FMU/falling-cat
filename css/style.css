@@ -479,3 +479,22 @@ body.menu-open #stage-menu { display: none; }
   .pl-title { font-size: 10.5px; }
   .pl-unit { font-size: 8.5px; }
 }
+
+/* ---------- the HUD is just the time bar; the lesson card sits top left; the body stays centred ---------- */
+#hud[hidden] { display: none; }
+#hud { width: 140px; padding: 6px 8px; }
+#hud .bar { margin-top: 0; }
+@media (min-width: 761px) {
+  /* lesson card in the top-left corner (under the time bar when there is one) */
+  #lesson-card, body.plots-on #lesson-card { top: 8px; left: 8px; right: auto; max-height: calc(100% - 120px); }
+  body.hud-on #lesson-card, body.hud-on.plots-on #lesson-card { top: 32px; }
+  /* the coach hint sits between the card and the plots; the landing report on the right */
+  body.in-lesson #coach { left: calc(min(360px, 44%) + 24px); right: 12px; }
+  body.in-lesson.plots-on #coach { right: 206px; }
+  body.in-lesson #banner { left: auto; right: 12px; transform: none; max-width: calc(100% - min(360px, 44%) - 36px); }
+}
+@media (max-width: 760px) {
+  #hud { width: 110px; padding: 5px 7px; }
+  #lesson-card.folded { top: 8px; left: 8px; max-width: calc(100% - 16px); }
+  body.hud-on #lesson-card, body.hud-on #lesson-card.folded { top: 26px; }
+}
