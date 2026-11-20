@@ -17,12 +17,16 @@ FC.lessons = (function () {
   const KEY = "fallingcat.lessons", VKEY = "fallingcat.lessons.v";
   const save = (p) => { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch {} };
   const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
-  // Version 2 (Nov 2026) put two lessons between 3 and 4, so old lessons 4–7 are now 6–9: move saved progress once.
+  // Saved progress follows the lessons when they are renumbered (each step runs once):
+  //   version 2 put two lessons between 3 and 4, so old lessons 4–7 became 6–9;
+  //   version 3 swapped lessons 1 and 2 (zero angular momentum first: the simplest thing to see).
   try {
-    if (localStorage.getItem(VKEY) !== "2") {
-      const p = read(), q = {};
-      for (const k in p) q[+k >= 4 ? +k + 2 : k] = p[k];
-      save(q); localStorage.setItem(VKEY, "2");
+    const v = +(localStorage.getItem(VKEY) || 1);
+    if (v < 3) {
+      let p = read(), q = {};
+      if (v < 2) { for (const k in p) q[+k >= 4 ? +k + 2 : k] = p[k]; p = q; q = {}; }
+      for (const k in p) q[+k === 1 ? 2 : +k === 2 ? 1 : k] = p[k];
+      save(q); localStorage.setItem(VKEY, "3");
     }
   } catch {}
   const load = read;
@@ -102,7 +106,7 @@ FC.lessons = (function () {
   const LESSONS = [
     // ---------------------------------------------------------------- Model 0
     {
-      id: 1, title: "Inertia", tagline: "Fold the leg: the body gets easier to spin.",
+      id: 2, title: "Inertia", tagline: "Fold the leg: the body gets easier to spin.",
       goal: "Make the body easier to spin about its long axis.", math: "inertia",
       setup(api, mem) { api.useModel0(0.3); mem.J0 = J1(api); mem.d0 = Math.hypot(api.st.conf.bodies[2].p[1], api.st.conf.bodies[2].p[2]); },
       steps: [
@@ -127,7 +131,7 @@ FC.lessons = (function () {
         spins just by tucking its legs.`,
     },
     {
-      id: 2, title: "Zero angular momentum", tagline: "Twist one half: the other turns back.",
+      id: 1, title: "Zero angular momentum", tagline: "Twist one half: the other turns back.",
       goal: "Twist the front half and watch what the back half does.", math: "momentum",
       setup(api) { api.useModel0(0); api.fx.ghost(true); api.fx.arrows(true); },
       steps: [
@@ -141,8 +145,8 @@ FC.lessons = (function () {
         mem.scale = Math.max((mem.scale || 0.5) * 0.995, Math.abs(a), Math.abs(c));
         return viz.balance(a, c, mem.scale, ["front", "back"]) + `<div class="lv-note">Back half turned <b>${f(api.net()[0] / deg)}°</b> from the ghost</div>`;
       },
-      takeaway: (api, mem) => `When the front half twisted ${f(mem.psi / deg)}°, the back half turned <b>${f(mem.net / deg)}°</b> the other way: equal and opposite,
-        so the total angular momentum stayed exactly zero. Untwisting undid it, and the body ended up right back on its ghost.`,
+      takeaway: (api, mem) => `You twisted the halves ${f(mem.psi / deg)}° apart, and each one turned <b>${f(Math.abs(mem.net / deg))}°</b>, in opposite directions:
+        equal and opposite, so the total angular momentum stayed exactly zero. Untwisting undid it, and the body ended up right back on its ghost.`,
     },
     {
       id: 3, title: "A loop makes a turn", tagline: "Same moves in a loop: the whole body turns.",
@@ -277,7 +281,7 @@ FC.lessons = (function () {
           It's a fixed routine, though: from higher up, the adaptable reflex wins.`;
       },
     },
-  ];
+  ].sort((a, b) => a.id - b.id); // listed and played in id order
 
   // ---------------------------------------------------------------- the lesson card (on the game screen)
   // mount(api, container, id, on, vizEl): runs lesson `id`, draws its card into `container` (over the scene)
