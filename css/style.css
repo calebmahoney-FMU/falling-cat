@@ -506,3 +506,17 @@ body.menu-open #stage-menu { display: none; }
 .pl-block.on { border-color: var(--accent); background: rgba(30, 34, 44, 0.92); }
 /* controls a lesson doesn't use are hidden (panel sliders, thumb pad parts) */
 #controls .ctrl[hidden], #touchpad [hidden] { display: none !important; }
+
+/* ---------- computers: the side panel is a card over the scene, only as tall as its contents ---------- */
+/* (The scene now runs the full width under it; the plots, coach hint and landing report keep clear of it.) */
+@media (min-width: 761px) {
+  body:not(.touch-play) #app { position: relative; }
+  body:not(.touch-play) #panel { position: absolute; top: 8px; right: 8px; z-index: 9; width: 320px; height: auto;
+    max-height: calc(100% - 16px); border: 1px solid var(--line); border-radius: 12px; padding-bottom: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); }
+  body:not(.touch-play) #plots { right: 336px; }
+  body:not(.touch-play) #coach, body:not(.touch-play).in-lesson #coach { right: 344px; }
+  body:not(.touch-play).plots-on #coach, body:not(.touch-play).in-lesson.plots-on #coach { right: 534px; }
+  body:not(.touch-play) #banner { left: calc(50% - 168px); max-width: calc(100% - 360px); }
+  body:not(.touch-play).in-lesson #banner { left: auto; right: 344px; max-width: calc(100% - min(360px, 44%) - 370px); }
+}
