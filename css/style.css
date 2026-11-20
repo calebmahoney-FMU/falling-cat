@@ -520,3 +520,9 @@ body.menu-open #stage-menu { display: none; }
   body:not(.touch-play) #banner { left: calc(50% - 168px); max-width: calc(100% - 360px); }
   body:not(.touch-play).in-lesson #banner { left: auto; right: 344px; max-width: calc(100% - min(360px, 44%) - 370px); }
 }
+/* the slider the arrow keys move (computers): a thin accent bar on its left */
+.keys-hint { margin: 2px 0 4px; }
+@media (hover: hover) and (pointer: fine) {
+  #controls .ctrl.sel { box-shadow: inset 3px 0 0 var(--accent); padding-left: 8px; margin-left: -8px; border-radius: 4px; }
+  #controls .ctrl.sel .ctrl-head span { color: var(--text); }
+}

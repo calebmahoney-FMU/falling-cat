@@ -10,7 +10,14 @@ FC.Controls = class {
     this.enabled = true;
     window.addEventListener("keydown", (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
-      this.held.add(e.key.toLowerCase());
+      const k = e.key.toLowerCase();
+      // Pick a slider: ↑ / ↓ always, and W / S when they aren't a shown control's own keys.
+      if (this.model && (k === "arrowup" || k === "arrowdown" || (this.isNav(k) && (k === "w" || k === "s")))) {
+        if (k.startsWith("arrow")) e.preventDefault(); // don't scroll the page
+        if (!e.repeat) this.step(k === "arrowup" || k === "w" ? -1 : 1);
+      }
+      if (k === "arrowleft" || k === "arrowright") e.preventDefault();
+      this.held.add(k);
     });
     window.addEventListener("keyup", (e) => this.held.delete(e.key.toLowerCase()));
     window.addEventListener("blur", () => this.held.clear());
@@ -42,10 +49,29 @@ FC.Controls = class {
         this.els[c.key] = { c, valEl: wrap.querySelector(".ctrl-head b"), input, toUi };
       }
       wrap.dataset.key = c.key;
+      wrap.addEventListener("pointerdown", () => this.select(c.key)); // touching a slider also picks it for the keys
       this.container.appendChild(wrap);
     }
     this.dialStart = 0;
+    this.selected = null;
     this.showAllowed();
+  }
+
+  // ---------- picking a slider with the keyboard ----------
+  // ↑ / ↓ (or W / S) pick a slider, ← / → (or A / D) move it at the control's own speed.
+  // W, A, S and D do this only when they aren't the keys of a control that is showing
+  // (e.g. in a lesson that only uses the twist); otherwise they keep their own job (bend, sweep).
+  shown() { return this.model ? this.model.controls.filter((c) => this.isAllowed(c.key)) : []; }
+  isNav(k) { return !this.shown().some((c) => c.keys.includes(k)); }
+  select(key) {
+    this.selected = key;
+    this.container.querySelectorAll(".ctrl").forEach((w) => w.classList.toggle("sel", w.dataset.key === key));
+  }
+  step(d) {
+    const list = this.shown();
+    if (!list.length) return;
+    const i = list.findIndex((c) => c.key === this.selected);
+    this.select(list[i < 0 ? (d > 0 ? 0 : list.length - 1) : (i + d + list.length) % list.length].key);
   }
 
   // A lesson can limit the body controls to the ones it needs: list of keys (a key also allows
@@ -55,6 +81,9 @@ FC.Controls = class {
   isAllowed(key) { return !this.allowed || this.allowed.some((a) => key === a || key.startsWith(a)); }
   showAllowed() {
     this.container.querySelectorAll(".ctrl").forEach((w) => (w.hidden = !this.isAllowed(w.dataset.key)));
+    // keep the keyboard's chosen slider on a shown one (the first, to start with)
+    const list = this.shown();
+    if (list.length && !list.some((c) => c.key === this.selected)) this.select(list[0].key);
   }
 
   bindDial(canvas, c) {
@@ -88,6 +117,17 @@ FC.Controls = class {
       let t = this.targets[c.key] + dir * c.rate * dtSim;
       if (c.type !== "dial") t = Math.min(c.max, Math.max(c.min, t));
       this.targets[c.key] = t;
+    }
+    // the chosen slider: ← / → always, A / D when they aren't a shown control's own keys
+    const c = this.model.controls.find((x) => x.key === this.selected);
+    if (c && this.isAllowed(c.key)) {
+      const h = (k) => this.held.has(k);
+      const dir = (h("arrowright") || (h("d") && this.isNav("d")) ? 1 : 0) - (h("arrowleft") || (h("a") && this.isNav("a")) ? 1 : 0);
+      if (dir) {
+        let t = this.targets[c.key] + dir * c.rate * dtSim;
+        if (c.type !== "dial") t = Math.min(c.max, Math.max(c.min, t));
+        this.targets[c.key] = t;
+      }
     }
   }
 
