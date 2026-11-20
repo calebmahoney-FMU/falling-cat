@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="icons/icon-192.png" width="128" alt="Falling Cat app icon">
+<img src="icons/icon-192.png" width="128" alt="CatGrav app icon">
 
-# Falling Cat
+# CatGrav
 
 **You are the cat. Nothing to push against. Land on your feet.**
 
@@ -32,7 +32,7 @@ A physics game about how a falling cat turns over with zero angular momentum.
 1. Open **https://calebmahoney-fmu.github.io/falling-cat/** in **Chrome** (or scan the QR code above).
 2. Tap the **Install app** button on the game's menu.<br>
    No button? Tap Chrome's **⋮** menu → **Install app** (or **Add to Home screen** → **Install**).
-3. Falling Cat appears in your **app drawer** with its own icon. It opens full screen like any other app.
+3. CatGrav appears in your **app drawer** with its own icon. It opens full screen like any other app.
 4. Open it once while online. After that it **works offline**.
 
 ### iPhone (Safari)

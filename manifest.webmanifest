@@ -1,6 +1,6 @@
 {
-  "name": "Falling Cat",
-  "short_name": "Falling Cat",
+  "name": "CatGrav",
+  "short_name": "CatGrav",
   "description": "You are the cat: land on your feet with nothing to push against. A physics game of zero angular momentum.",
   "id": "./index.html",
   "start_url": "./index.html",
