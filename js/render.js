@@ -525,31 +525,31 @@ FC.Renderer = class {
     mk.tiltLabel.position.copy(com).addScaledVector(mid, R * 0.55 + 0.07);
     label(mk.tiltLabel, `Tilt ${Math.round(m.tilt)}°`);
     // Turning: the axis the body is turning about, and a curved arrow around it showing which way (right-hand rule)
-    const turning = m.axis && m.speed > 5;
-    mk.turn.visible = !!turning;
-    if (turning) {
+    // (axis = the last axis it turned about, held between movements; it fades, not vanishes, when still)
+    mk.turn.visible = !!m.axis;
+    if (m.axis) {
       mk.turn.position.copy(com);
       mk.turn.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), V(m.axis).normalize());
+      mk.turnMat.opacity = 0.2 + 0.4 * Math.min(1, m.turnStrength ?? 1);
       label(mk.turnLabel, `turning ${Math.round(m.speed)}°/s`);
     }
-    // Angular momentum: one arrow along the body for each of the plot's two parts
+    // Angular momentum: one arrow along the body for each of the plot's two parts (a short stub when ~0)
     m.parts.forEach((p, i) => {
-      const a = mk.L[i], len = 0.07 + 0.2 * Math.min(1, p.size), dir = V(p.dir).normalize();
-      a.visible = mk.Llabels[i].visible = p.size > 0.03;
-      if (!a.visible) return;
+      const a = mk.L[i], len = 0.05 + 0.22 * Math.min(1, p.size), dir = V(p.dir).normalize();
+      a.visible = mk.Llabels[i].visible = true;
       a.userData.paint(p.color); a.userData.setLength(len);
       a.position.copy(V(p.pos)); a.quaternion.setFromUnitVectors(Y, dir);
       mk.Llabels[i].position.copy(V(p.pos)).addScaledVector(dir, len + 0.05);
       label(mk.Llabels[i], p.name, p.color);
     });
     for (let i = m.parts.length; i < mk.L.length; i++) mk.L[i].visible = mk.Llabels[i].visible = false;
-    // m.show ("tilt", "speed" or "L"): only that plot's marker
+    // m.show (a Set of "tilt", "speed", "L"): only those plots' markers
     if (m.show) {
-      const tiltOn = m.show === "tilt";
+      const tiltOn = m.show.has("tilt");
       mk.up.visible = mk.back.visible = mk.upLabel.visible = mk.tiltLabel.visible = tiltOn;
       mk.arc.visible = mk.arc.visible && tiltOn;
-      mk.turn.visible = mk.turn.visible && m.show === "speed";
-      if (m.show !== "L") mk.L.forEach((a, i) => (a.visible = mk.Llabels[i].visible = false));
+      mk.turn.visible = mk.turn.visible && m.show.has("speed");
+      if (!m.show.has("L")) mk.L.forEach((a, i) => (a.visible = mk.Llabels[i].visible = false));
     }
 
     function label(sprite, text, color) {
@@ -624,7 +624,7 @@ FC.Renderer = class {
     const L = [arrow(0xf29a3a), arrow(0x5fb3f0)], Llabels = [sprite("#f29a3a"), sprite("#5fb3f0")];
     group.add(up, back, arc, upLabel, tiltLabel, turn, ...L, ...Llabels);
     this.scene.add(group);
-    return { group, up, upLabel, back, arc, tiltLabel, turn, turnLabel, L, Llabels };
+    return { group, up, upLabel, back, arc, tiltLabel, turn, turnLabel, turnMat: cm, L, Llabels };
   }
 
   // Build the cat visual for a model whose geometry() returns body segments.

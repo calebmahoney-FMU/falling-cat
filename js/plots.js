@@ -24,28 +24,41 @@ FC.Plots = class {
     // One line per chart: a plain title, a small unit, and (for momentum) a legend; the full meaning is the tooltip.
     const block = (key, title, unit, full, legend = "") => `<div class="pl-block" data-k="${key}" title="${full}"><div class="pl-head">
       <span class="pl-title">${title} <span class="pl-unit">${unit}</span></span><div class="pl-legend">${legend}</div></div><canvas></canvas></div>`;
-    const tip = " · Point at or tap to show it on the body";
-    container.innerHTML =
+    const tip = " · Tap or click to show it on the body (any combination); point at it for a quick look";
+    container.innerHTML = `<button class="pl-all" type="button">Show all on body</button>` +
       block("tilt", `<i class="pl-sw" style="--c:#ffd36b"></i>Tilt`, "°", "How far the body is from upright: 180° = upside down, 0° = feet down" + tip) +
       block("speed", `<i class="pl-sw" style="--c:#79e3ff"></i>Turning speed`, "°/s", "How fast the body is rotating (size of its angular velocity)" + tip) +
       block("L", "Angular momentum", "", "Two parts of the body, along its length: they always cancel, so the total stays 0" + tip);
     this.cv = {};
     container.querySelectorAll(".pl-block").forEach((b) => (this.cv[b.dataset.k] = b.querySelector("canvas")));
     this.legendEl = container.querySelector('[data-k="L"] .pl-legend');
-    // Which plot's marker is drawn on the body: the one under the mouse, or the one tapped/clicked
-    // (stays until tapped again). None chosen: no markers, the body stays clean.
-    this.hover = null; this.pinned = null;
+    // Which plots' markers are drawn on the body: any combination switched on by tapping/clicking each
+    // plot (tap again to switch it off), "Show all" for all three, plus the one under the mouse for a
+    // quick look. None chosen: no markers, the body stays clean.
+    this.KEYS = ["tilt", "speed", "L"];
+    this.hover = null; this.pinned = new Set();
     container.querySelectorAll(".pl-block").forEach((b) => {
       const k = b.dataset.k;
       b.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") { this.hover = k; this.mark(); } });
       b.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") { this.hover = null; this.mark(); } });
-      b.addEventListener("click", () => { this.pinned = this.pinned === k ? null : k; this.mark(); });
+      b.addEventListener("click", () => { if (this.pinned.has(k)) this.pinned.delete(k); else this.pinned.add(k); this.mark(); });
+    });
+    this.allBtn = container.querySelector(".pl-all");
+    this.allBtn.addEventListener("click", () => {
+      this.pinned = this.pinned.size === this.KEYS.length ? new Set() : new Set(this.KEYS);
+      this.mark();
     });
   }
 
-  // The plot whose marker is shown on the body ("tilt", "speed", "L") or null.
-  get active() { return this.hover || this.pinned; }
-  mark() { this.el.querySelectorAll(".pl-block").forEach((b) => b.classList.toggle("on", b.dataset.k === this.active)); }
+  // The plots whose markers are shown on the body (a Set of "tilt", "speed", "L"; empty = none).
+  get active() { const s = new Set(this.pinned); if (this.hover) s.add(this.hover); return s; }
+  mark() {
+    const on = this.active;
+    this.el.querySelectorAll(".pl-block").forEach((b) => b.classList.toggle("on", on.has(b.dataset.k)));
+    const all = this.pinned.size === this.KEYS.length;
+    this.allBtn.textContent = all ? "Hide all on body" : "Show all on body";
+    this.allBtn.classList.toggle("on", all);
+  }
 
   // Colours shared with the markers drawn on the body (js/render.js setMarkers).
   get C() { return { line: "#ffd36b", speed: "#79e3ff", front: "#f29a3a", back: "#5fb3f0", legs: "#7ee787", total: "#ffffff" }; }

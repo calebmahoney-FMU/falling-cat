@@ -198,7 +198,7 @@
     game.t = 0;
     game.L = 0;
     game.log = [];
-    game.clock = 0; game.Omega = [0, 0, 0];
+    game.clock = 0; game.Omega = [0, 0, 0]; Object.assign(markHold, { speed: 0, axis: null, L: [0, 0] });
     if (plots) plots.reset();
     game.rightedAt = null;
     game.pilotMem = {};
@@ -264,7 +264,7 @@
         belief: FC.sim.makeBelief($("cue").value, { seed: (Math.random() * 1e9) | 0, drift: +$("drift").value }) };
     }
     game.paused = false; // a new drop always starts running
-    game.clock = 0; game.Omega = [0, 0, 0];
+    game.clock = 0; game.Omega = [0, 0, 0]; Object.assign(markHold, { speed: 0, axis: null, L: [0, 0] });
     if (plots) plots.reset();
     game.nar = { timeline: [] };
     syncSpeedBar();
@@ -1029,13 +1029,22 @@
   // The plots' quantities drawn on the body (world frame), in the plot lines' colours: the tilt angle
   // between "straight up" and the body's back, the axis it is turning about, and the two parts' angular
   // momentum along the body (the same pair the momentum plot shows).
+  // Between movements the body is still, so the turning speed and the parts' angular momentum drop to 0;
+  // with instant sliders that would make their markers blink on for one frame. The markers instead keep
+  // the last turning axis and momentum directions (fixed to the body) and fade their size over ~1 s,
+  // while the labels always give the value right now.
+  const markHold = { t: 0, speed: 0, axis: null, L: [0, 0], sign: [1, 1] };
   function updatePlotMarkers(show) {
-    // only the marker of the plot being pointed at or tapped; none chosen, none drawn
+    // the markers of the plots switched on (any combination) and the one under the mouse; none chosen, none drawn
     const which = plots.active;
-    if (!show || !which || game.phase === "landed" || game.phase === "absorbing") return renderer.setMarkers(null);
+    if (!show || !which.size || game.phase === "landed" || game.phase === "absorbing") return renderer.setMarkers(null);
+    const now = performance.now(), fade = Math.exp(-Math.min(0.1, (now - (markHold.t || now)) / 1000) / 0.6);
+    markHold.t = now;
     const R = game.R, col = (j) => [R[j], R[3 + j], R[6 + j]]; // body axes in the world: x̂ (long axis), ŷ, ẑ (back)
     const tilt = Math.acos(Math.max(-1, Math.min(1, R[5]))) / deg;
     const O = game.Omega || [0, 0, 0], speed = Math.hypot(O[0], O[1], O[2]) / deg;
+    if (speed > 1) markHold.axis = v.scale(O, 1 / Math.hypot(O[0], O[1], O[2])); // body frame, so it turns with the body
+    markHold.speed = Math.max(speed, markHold.speed * fade);
     const st = FC.physics.state(game.model, game.shape, game.sdot || {});
     // the pair the plot is showing, each part's centre of mass in the world, and its arrow along ±x̂
     const pair = plots.pair || "fb", names = pair === "fb" ? ["L front", "L back"] : ["L body", "L legs"];
@@ -1045,10 +1054,13 @@
     const parts = momentumArrows ? [] : [0, 1].map((i) => {
       let m = 0, L = 0; const c = [0, 0, 0];
       for (const b of st.bodies) if (inPart(b, i)) { m += b.m; L += b.L[0]; for (let k = 0; k < 3; k++) c[k] += b.m * b.r[k]; }
+      if (Math.abs(L) > 1e-9) markHold.sign[i] = L >= 0 ? 1 : -1;
+      markHold.L[i] = Math.max(Math.abs(L), markHold.L[i] * fade);
       const pos = v.add(game.pos, mv(R, v.scale(c, 1 / Math.max(m, 1e-9))));
-      return { pos, dir: v.scale(x, L >= 0 ? 1 : -1), size: Math.abs(L) / maxL, color: plots.C[i === 0 ? "front" : pair === "fb" ? "back" : "legs"], name: names[i] };
+      return { pos, dir: v.scale(x, markHold.sign[i]), size: markHold.L[i] / maxL, color: plots.C[i === 0 ? "front" : pair === "fb" ? "back" : "legs"], name: names[i] };
     });
-    renderer.setMarkers({ com: game.pos, up: col(2), tilt, axis: speed > 0.1 ? mv(R, O) : null, speed, parts, show: which });
+    renderer.setMarkers({ com: game.pos, up: col(2), tilt, axis: markHold.axis ? mv(R, markHold.axis) : null, speed,
+      turnStrength: Math.min(1, markHold.speed / 60), parts, show: which });
   }
 
   // Model 0: an arrow for each body's angular momentum L_i (world frame), from the body's centre of mass.
