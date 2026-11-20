@@ -490,6 +490,134 @@ FC.Renderer = class {
     for (let i = list.length; i < this.vecArrows.length; i++) this.vecArrows[i].visible = false;
   }
 
+  // ---------- plot markers: what each live plot is measuring, drawn on the body itself ----------
+  // m = null hides them, or (world frame, metres; colours match the plot lines):
+  //   { com, up (body's back, unit), tilt (deg),               → dashed "straight up", arrow along the back, arc "Tilt 135°"
+  //     axis (unit) | null, speed (deg/s),                      → dashed turning axis with a curved arrow "turning 540°/s"
+  //     parts: [{ pos, dir (unit, ±long axis), size 0..1, color, name }] → momentum arrows along the body }
+  // Drawn as thick tubes (WebGL lines are only 1 px wide) on top of the body (depthTest off).
+  setMarkers(m) {
+    const mk = this.mk || (this.mk = this.buildMarkers());
+    mk.group.visible = !!m;
+    if (!m) return;
+    const V = (a) => new THREE.Vector3(a[0], a[1], a[2]), Y = new THREE.Vector3(0, 1, 0);
+    const com = V(m.com), back = V(m.up).normalize(), R = 0.3;
+    // Tilt: straight up (dashed), the body's back (arrow), the angle between them (arc + label)
+    mk.up.position.copy(com);
+    mk.upLabel.position.copy(com).addScaledVector(Y, R + 0.035);
+    mk.back.position.copy(com); mk.back.quaternion.setFromUnitVectors(Y, back);
+    const ang = Y.angleTo(back);
+    let axis = new THREE.Vector3().crossVectors(Y, back);
+    if (axis.lengthSq() < 1e-8) axis = new THREE.Vector3(1, 0, 0); else axis.normalize();
+    mk.arc.visible = ang > 0.05;
+    if (mk.arc.visible && Math.abs(ang - (mk.arcAng ?? -1)) > 0.004) { // rebuild the arc tube only when the angle changes
+      mk.arcAng = ang;
+      const pts = [];
+      for (let i = 0; i <= 24; i++) pts.push(Y.clone().applyAxisAngle(new THREE.Vector3(1, 0, 0), (ang * i) / 24).multiplyScalar(R * 0.55));
+      mk.arc.geometry.dispose();
+      mk.arc.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.0045, 6);
+    }
+    // the arc is built in the y–z plane turning about x; place it turning about the real axis, keeping y
+    // straight up (local x → axis, y → up, z → axis × up: an explicit basis, right-handed since axis ⟂ up)
+    mk.arc.position.copy(com);
+    mk.arc.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(axis, Y, axis.clone().cross(Y)));
+    const mid = Y.clone().applyAxisAngle(axis, ang / 2);
+    mk.tiltLabel.position.copy(com).addScaledVector(mid, R * 0.55 + 0.07);
+    label(mk.tiltLabel, `Tilt ${Math.round(m.tilt)}°`);
+    // Turning: the axis the body is turning about, and a curved arrow around it showing which way (right-hand rule)
+    const turning = m.axis && m.speed > 5;
+    mk.turn.visible = !!turning;
+    if (turning) {
+      mk.turn.position.copy(com);
+      mk.turn.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), V(m.axis).normalize());
+      label(mk.turnLabel, `turning ${Math.round(m.speed)}°/s`);
+    }
+    // Angular momentum: one arrow along the body for each of the plot's two parts
+    m.parts.forEach((p, i) => {
+      const a = mk.L[i], len = 0.07 + 0.2 * Math.min(1, p.size), dir = V(p.dir).normalize();
+      a.visible = mk.Llabels[i].visible = p.size > 0.03;
+      if (!a.visible) return;
+      a.userData.paint(p.color); a.userData.setLength(len);
+      a.position.copy(V(p.pos)); a.quaternion.setFromUnitVectors(Y, dir);
+      mk.Llabels[i].position.copy(V(p.pos)).addScaledVector(dir, len + 0.05);
+      label(mk.Llabels[i], p.name, p.color);
+    });
+    for (let i = m.parts.length; i < mk.L.length; i++) mk.L[i].visible = mk.Llabels[i].visible = false;
+
+    function label(sprite, text, color) {
+      if (sprite.userData.text === text && sprite.userData.color === color) return;
+      sprite.userData.text = text; sprite.userData.color = color;
+      sprite.userData.draw(text, color);
+    }
+  }
+
+  buildMarkers() {
+    const group = new THREE.Group();
+    const mat = (color) => new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true });
+    const top = (o) => { o.renderOrder = 20; o.traverse((c) => (c.renderOrder = 20)); return o; };
+    const YEL = 0xffd36b, CYAN = 0x79e3ff, W = 0.0045; // tube radius
+    // a tube from a to b (local coordinates)
+    const tube = (a, b, m) => {
+      const d = new THREE.Vector3().subVectors(b, a), o = new THREE.Mesh(new THREE.CylinderGeometry(W, W, d.length(), 8), m);
+      o.position.copy(a).addScaledVector(d, 0.5); o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+      return o;
+    };
+    // dashes along +y (or +z) from s0 to s1
+    const dashes = (s0, s1, m, alongZ) => {
+      const g = new THREE.Group(), P = (s) => (alongZ ? new THREE.Vector3(0, 0, s) : new THREE.Vector3(0, s, 0));
+      for (let s = s0; s < s1 - 0.005; s += 0.04) g.add(tube(P(s), P(Math.min(s + 0.024, s1)), m));
+      return g;
+    };
+    // a thick arrow along +y from the origin, length set later
+    const arrow = (color) => {
+      const m = mat(color), g = new THREE.Group();
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(W * 1.3, W * 1.3, 1, 8), m);
+      const head = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.04, 12), m);
+      g.add(shaft, head);
+      g.userData.setLength = (len) => { const s = Math.max(0.001, len - 0.04); shaft.scale.y = s; shaft.position.y = s / 2; head.position.y = s + 0.02; };
+      g.userData.paint = (c) => m.color.set(c);
+      g.userData.setLength(0.2);
+      return top(g);
+    };
+    // A text label that keeps the same size on screen (dark pill, bright text).
+    const sprite = (defColor) => {
+      const c = document.createElement("canvas"); c.width = 256; c.height = 64;
+      const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
+      const s = top(new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, sizeAttenuation: false, depthTest: false, transparent: true })));
+      s.scale.set(0.16, 0.04, 1);
+      s.userData.draw = (text, color = defColor) => {
+        const g = c.getContext("2d");
+        g.clearRect(0, 0, 256, 64);
+        g.font = "600 30px system-ui, sans-serif";
+        const w = Math.min(250, g.measureText(text).width + 24);
+        g.fillStyle = "rgba(18, 21, 28, 0.8)";
+        g.beginPath(); if (g.roundRect) g.roundRect(128 - w / 2, 10, w, 44, 22); else g.rect(128 - w / 2, 10, w, 44); g.fill();
+        g.fillStyle = color; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, 128, 33);
+        tex.needsUpdate = true;
+      };
+      return s;
+    };
+    // tilt
+    const up = top(dashes(0, 0.3, mat(0xffffff)));
+    const back = arrow(YEL); back.userData.setLength(0.3);
+    const arc = top(new THREE.Mesh(new THREE.BufferGeometry(), mat(YEL)));
+    const upLabel = sprite("#ffffff"); upLabel.userData.draw("straight up");
+    const tiltLabel = sprite("#ffd36b");
+    // turning, built along +z and turned to the axis: dashed axis, a 270° ring around it, an arrowhead
+    const turn = new THREE.Group(), r = 0.1, cm = mat(CYAN);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, W, 6, 48, 1.5 * Math.PI), cm); ring.position.z = 0.12;
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.045, 12), cm);
+    head.position.set(0, -r, 0.12); head.rotation.set(0, 0, -Math.PI / 2); // at the ring's end (270°), pointing on round (+x)
+    const turnLabel = sprite("#79e3ff"); turnLabel.position.set(r + 0.1, 0, 0.12); // beside its ring, off the body axis
+    turn.add(dashes(-0.22, 0.22, cm, true), ring, head, turnLabel);
+    top(turn);
+    // angular momentum
+    const L = [arrow(0xf29a3a), arrow(0x5fb3f0)], Llabels = [sprite("#f29a3a"), sprite("#5fb3f0")];
+    group.add(up, back, arc, upLabel, tiltLabel, turn, ...L, ...Llabels);
+    this.scene.add(group);
+    return { group, up, upLabel, back, arc, tiltLabel, turn, turnLabel, L, Llabels };
+  }
+
   // Build the cat visual for a model whose geometry() returns body segments.
   setModel(model) {
     if (this.cat) this.scene.remove(this.cat.root);

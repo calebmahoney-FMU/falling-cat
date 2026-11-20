@@ -25,15 +25,16 @@ FC.Plots = class {
     const block = (key, title, unit, full, legend = "") => `<div class="pl-block" data-k="${key}" title="${full}"><div class="pl-head">
       <span class="pl-title">${title} <span class="pl-unit">${unit}</span></span><div class="pl-legend">${legend}</div></div><canvas></canvas></div>`;
     container.innerHTML =
-      block("tilt", "Tilt", "°", "How far the body is from upright: 180° = upside down, 0° = feet down") +
-      block("speed", "Turning speed", "°/s", "How fast the body is rotating (size of its angular velocity)") +
+      block("tilt", `<i class="pl-sw" style="--c:#ffd36b"></i>Tilt`, "°", "How far the body is from upright: 180° = upside down, 0° = feet down") +
+      block("speed", `<i class="pl-sw" style="--c:#79e3ff"></i>Turning speed`, "°/s", "How fast the body is rotating (size of its angular velocity)") +
       block("L", "Angular momentum", "", "Two parts of the body, along its length: they always cancel, so the total stays 0");
     this.cv = {};
     container.querySelectorAll(".pl-block").forEach((b) => (this.cv[b.dataset.k] = b.querySelector("canvas")));
     this.legendEl = container.querySelector('[data-k="L"] .pl-legend');
   }
 
-  get C() { return { line: "#ffd36b", front: "#f29a3a", back: "#5fb3f0", legs: "#7ee787", total: "#ffffff" }; }
+  // Colours shared with the markers drawn on the body (js/render.js setMarkers).
+  get C() { return { line: "#ffd36b", speed: "#79e3ff", front: "#f29a3a", back: "#5fb3f0", legs: "#7ee787", total: "#ffffff" }; }
 
   // The momentum chart's legend: the two parts shown, then the total (rebuilt only when it changes).
   legend(names, cols) {
@@ -64,11 +65,11 @@ FC.Plots = class {
     // Turning speed: from 0 up to the largest so far.
     const top = Math.max(90, ...S.map((p) => p.speed)) * 1.1;
     this.plot("speed", t0, t1, { lo: 0, hi: top, ticks: [[top / 1.1, (top / 1.1).toFixed(0)], [0, "0"]] },
-      [{ color: C.line, get: (p) => p.speed, width: 2.2 }]);
+      [{ color: C.speed, get: (p) => p.speed, width: 2.2 }]);
     // Momentum: the pair that is doing the work (front vs back, or body vs legs), filled so their
     // mirror image is easy to see, and the total. Symmetric about 0.
     const size = (k) => S.reduce((a, p) => a + Math.abs(p[k][0]) + Math.abs(p[k][1]), 0);
-    const k = size("bl") > 1.5 * size("fb") ? "bl" : "fb";
+    const k = (this.pair = size("bl") > 1.5 * size("fb") ? "bl" : "fb"); // remembered for the markers on the body
     const names = k === "fb" ? ["front", "back"] : ["body", "legs"], cols = k === "fb" ? [C.front, C.back] : [C.front, C.legs];
     this.legend(names, cols);
     const m = Math.max(1e-4, ...S.map((p) => Math.max(Math.abs(p[k][0]), Math.abs(p[k][1])))) * 1.15;

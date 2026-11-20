@@ -1023,6 +1023,30 @@
     $("plots").hidden = !show;
     document.body.classList.toggle("plots-on", show);
     if (show) plots.draw();
+    updatePlotMarkers(show);
+  }
+
+  // The plots' quantities drawn on the body (world frame), in the plot lines' colours: the tilt angle
+  // between "straight up" and the body's back, the axis it is turning about, and the two parts' angular
+  // momentum along the body (the same pair the momentum plot shows).
+  function updatePlotMarkers(show) {
+    if (!show || game.phase === "landed" || game.phase === "absorbing") return renderer.setMarkers(null);
+    const R = game.R, col = (j) => [R[j], R[3 + j], R[6 + j]]; // body axes in the world: x̂ (long axis), ŷ, ẑ (back)
+    const tilt = Math.acos(Math.max(-1, Math.min(1, R[5]))) / deg;
+    const O = game.Omega || [0, 0, 0], speed = Math.hypot(O[0], O[1], O[2]) / deg;
+    const st = FC.physics.state(game.model, game.shape, game.sdot || {});
+    // the pair the plot is showing, each part's centre of mass in the world, and its arrow along ±x̂
+    const pair = plots.pair || "fb", names = pair === "fb" ? ["L front", "L back"] : ["L body", "L legs"];
+    const inPart = (b, i) => (pair === "fb" ? (b.r[0] >= 0) === (i === 0) : /leg/.test(b.part || "") === (i === 1));
+    const S = plots.samples, maxL = Math.max(1e-6, ...S.map((p) => Math.max(Math.abs(p[pair][0]), Math.abs(p[pair][1]))));
+    const x = col(0);
+    const parts = momentumArrows ? [] : [0, 1].map((i) => {
+      let m = 0, L = 0; const c = [0, 0, 0];
+      for (const b of st.bodies) if (inPart(b, i)) { m += b.m; L += b.L[0]; for (let k = 0; k < 3; k++) c[k] += b.m * b.r[k]; }
+      const pos = v.add(game.pos, mv(R, v.scale(c, 1 / Math.max(m, 1e-9))));
+      return { pos, dir: v.scale(x, L >= 0 ? 1 : -1), size: Math.abs(L) / maxL, color: plots.C[i === 0 ? "front" : pair === "fb" ? "back" : "legs"], name: names[i] };
+    });
+    renderer.setMarkers({ com: game.pos, up: col(2), tilt, axis: speed > 0.1 ? mv(R, O) : null, speed, parts });
   }
 
   // Model 0: an arrow for each body's angular momentum L_i (world frame), from the body's centre of mass.

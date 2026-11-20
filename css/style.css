@@ -498,3 +498,5 @@ body.menu-open #stage-menu { display: none; }
   #lesson-card.folded { top: 8px; left: 8px; max-width: calc(100% - 16px); }
   body.hud-on #lesson-card, body.hud-on #lesson-card.folded { top: 26px; }
 }
+/* colour dot before each plot's title: the same colour as its marker on the body */
+.pl-sw { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 5px; vertical-align: 1px; }
