@@ -334,7 +334,20 @@
     // In Watch mode the cat holds its starting pose until its reflex kicks in.
     const delayS = +$("delay").value / 1000;
 
-    const n = Math.max(1, Math.ceil(simDt / SUBSTEP));
+    // No gravity and the player in control (zero-g practice, Model 0 lessons): the body follows the
+    // sliders at once, with no muscle-speed limit, so nothing lags behind the controls. With zero angular
+    // momentum the turn depends only on the path through shape space, not on how fast it is travelled,
+    // so this changes no physics. Big moves are split into sub-steps of at most 2° (0.02 for legs) to
+    // keep the integration as accurate as at normal speed. Falling keeps the muscle limit (fair play).
+    const direct = game.phase === "float" && !game.demo;
+    let n = Math.max(1, Math.ceil(simDt / SUBSTEP));
+    if (direct) {
+      for (const c of game.model.controls) {
+        const d = Math.abs((controls.targets[c.key] ?? game.shape[c.key]) - game.shape[c.key]);
+        n = Math.max(n, Math.ceil(d / (c.unit === "deg" ? 2 * deg : 0.02)));
+      }
+      n = Math.min(n, 2000);
+    }
     const h = simDt / n;
     const kOverM = airOn() ? 1 / game.mass : 0;
     let maxL = 0;
@@ -345,7 +358,14 @@
         if (reacting && game.schedPilot) controls.targets = game.schedPilot(game.shape, pilotInfo(), tNow - delayS);
         else if (reacting && game.model.autopilot) controls.targets = game.model.autopilot(game.shape, pilotInfo(), game.pilotMem);
       }
-      const s1 = moveToward(game.shape, controls.targets, h);
+      let s1;
+      if (direct) { // an equal share of the remaining way to the target on each sub-step
+        s1 = { ...game.shape };
+        for (const c of game.model.controls) {
+          const t = controls.targets[c.key];
+          if (t !== undefined) s1[c.key] = game.shape[c.key] + (t - game.shape[c.key]) / (n - i);
+        }
+      } else s1 = moveToward(game.shape, controls.targets, h);
       // shape rates over this sub-step (for the live physics view)
       game.sdot = {};
       for (const k in s1) if (s1[k] !== game.shape[k]) game.sdot[k] = (s1[k] - game.shape[k]) / h;
