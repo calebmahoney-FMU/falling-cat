@@ -107,6 +107,7 @@ FC.lessons = (function () {
     // ---------------------------------------------------------------- Model 0
     {
       id: 2, title: "Inertia", tagline: "Fold the leg: the body gets easier to spin.",
+      controls: ["alpha"], // body controls this lesson needs
       goal: "Make the body easier to spin about its long axis.", math: "inertia",
       setup(api, mem) { api.useModel0(0.3); mem.J0 = J1(api); mem.d0 = Math.hypot(api.st.conf.bodies[2].p[1], api.st.conf.bodies[2].p[2]); },
       steps: [
@@ -132,6 +133,7 @@ FC.lessons = (function () {
     },
     {
       id: 1, title: "Zero angular momentum", tagline: "Twist one half: the other turns back.",
+      controls: ["psi"], // body controls this lesson needs
       goal: "Twist the front half and watch what the back half does.", math: "momentum",
       // The leg has its real mass (0.3 kg), as drawn: the front half (cylinder + leg) is harder to turn than the back.
       setup(api) { api.useModel0(0.3); api.fx.ghost(true); api.fx.arrows(true); },
@@ -157,6 +159,7 @@ FC.lessons = (function () {
     },
     {
       id: 3, title: "A loop makes a turn", tagline: "Same moves in a loop: the whole body turns.",
+      controls: ["alpha", "psi"], // body controls this lesson needs
       goal: "Get back to the starting shape, but turned.", math: "geometry",
       setup(api) { api.useModel0(0.3); api.fx.ghost(true); },
       steps: [
@@ -176,6 +179,7 @@ FC.lessons = (function () {
     },
     {
       id: 4, title: "Turns add up", tagline: "Repeat the loop: each one adds the same turn.",
+      controls: ["alpha", "psi"], // body controls this lesson needs
       goal: "Do the loop three times. Bigger loops (fold 90°, twist 180°) turn more.", math: "geometry",
       setup(api) { api.useModel0(0.3); api.fx.ghost(true); },
       steps: [1, 2, 3].map(loopStep),
@@ -190,6 +194,7 @@ FC.lessons = (function () {
     },
     {
       id: 5, title: "Same trick on a cat", tagline: "Tucked legs do the leg's job. No gravity yet.",
+      controls: ["twist", "front", "back"], // body controls this lesson needs
       goal: "Turn model A from upside down to feet-down, floating with no clock.", math: "tuck-turn",
       setup(api, mem) {
         api.start({ model: "A", mode: "float", inputs: { start: "upside", speed: 0.15, "coach-on": true } });
@@ -218,6 +223,7 @@ FC.lessons = (function () {
     // ---------------------------------------------------------------- the cats, falling
     {
       id: 6, title: "Now with gravity (model A)", tagline: "Same moves, falling, against the clock.",
+      controls: ["twist", "front", "back"], // body controls this lesson needs
       goal: "Turn model A over while falling, using only twist and legs.", math: "tuck-turn",
       setup(api) { api.start({ model: "A", mode: "free", inputs: { start: "upside", height: 21, speed: 0.15, "air-on": true, "coach-on": true } }); },
       steps: [
@@ -233,6 +239,7 @@ FC.lessons = (function () {
     },
     {
       id: 7, title: "Bend and twist (model B)", tagline: "Sweep the bend around: the body rolls.",
+      controls: ["bend", "dir", "front", "back"], // body controls this lesson needs
       goal: "Turn model B over by bending and sweeping.", math: "bend-twist",
       setup(api) { api.start({ model: "B", mode: "free", inputs: { start: "upside", height: 3, speed: 0.15, "air-on": true, "coach-on": true } }); api.fx.ring(true); },
       steps: [
@@ -246,6 +253,7 @@ FC.lessons = (function () {
     },
     {
       id: 8, title: "Landing", tagline: "Same drop, two cats: soft vs hard.",
+      controls: [], // body controls this lesson needs
       goal: "Compare landing on folding knees with landing on rigid legs.", math: "landing",
       setup(api) { api.start({ model: "C", mode: "watch", inputs: { gravity: "earth", roll: 180, pitch: 0, delay: 60, strategy: "reflex", height: 3, speed: 0.3, "air-on": true } }); },
       steps: [
@@ -265,6 +273,7 @@ FC.lessons = (function () {
     },
     {
       id: 9, title: "The flexible spine (model D)", tagline: "Front half first: ready in time.",
+      controls: [], // body controls this lesson needs
       goal: "Land perfectly from just 0.5 m.", math: "moves",
       setup(api) { api.start({ model: "D", mode: "watch", inputs: { gravity: "earth", roll: 180, pitch: 0, delay: 0, strategy: "reflex", height: 0.5, speed: 0.3, "air-on": true } }); },
       steps: [
@@ -304,6 +313,7 @@ FC.lessons = (function () {
     container.classList.toggle("folded", matchMedia("(max-width: 760px)").matches); // phones: one line, tap to open
     api.fx.clear();
     L.setup && L.setup(api, mem);
+    if (api.allowControls) api.allowControls(L.controls ?? null); // only the body controls this lesson needs
     L.steps[0].begin && L.steps[0].begin(api, mem);
     if (vizEl) vizEl.hidden = !L.viz;
     const next = LESSONS.find((x) => x.id === L.id + 1);
@@ -370,6 +380,7 @@ FC.lessons = (function () {
         container.hidden = true;
         if (vizEl) { vizEl.innerHTML = ""; vizEl.hidden = true; }
         api.fx.clear();
+        if (api.allowControls) api.allowControls(null); // every control back outside the lessons
       },
     };
   }

@@ -504,3 +504,5 @@ body.menu-open #stage-menu { display: none; }
 .pl-block { pointer-events: auto; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
 .pl-block:hover { border-color: #4a566d; }
 .pl-block.on { border-color: var(--accent); background: rgba(30, 34, 44, 0.92); }
+/* controls a lesson doesn't use are hidden (panel sliders, thumb pad parts) */
+#controls .ctrl[hidden], #touchpad [hidden] { display: none !important; }

@@ -57,6 +57,7 @@ FC.TouchPad = class {
       t.knees = t.knees > 0.5 ? 0.05 : 0.95; // bent <-> straight
     });
     this.el.querySelector(".tp-neutral").addEventListener("click", () => { if (this.controls.enabled) this.controls.reset(); });
+    this.showAllowed();
   }
 
   // Model 0 (lessons): one big slider per control (β, φ, ψ, α) and Straighten. φ, the bend
@@ -75,6 +76,15 @@ FC.TouchPad = class {
       if (this.controls.enabled) this.controls.targets[inp.dataset.key] = +inp.value * deg;
     }));
     this.el.querySelector(".tp-neutral").addEventListener("click", () => { if (this.controls.enabled) this.controls.reset(); });
+    this.showAllowed();
+  }
+
+  // Hide the thumb controls a lesson doesn't use (same list as the panel: controls.isAllowed).
+  showAllowed() {
+    const ok = (k) => this.controls.isAllowed(k), hide = (sel, k) => this.el.querySelectorAll(sel).forEach((e) => (e.hidden = !ok(k)));
+    if (this.generic) { this.el.querySelectorAll(".tp-sl").forEach((l) => (l.hidden = !ok(l.querySelector("input").dataset.key))); return; }
+    hide(".tp-pad", "bend"); hide(".tp-twist", "twist");
+    hide('[data-leg="front"]', "front"); hide('[data-leg="back"]', "back"); hide("[data-knees]", "knees");
   }
 
   // Set a combined spine value (bend or twist), split between the joints for a flexible spine.

@@ -1105,6 +1105,13 @@
       const com = FC.physics.configuration(game.model, game.shape).com;
       return v.add(game.pos, mv(game.R, v.sub(p, com)));
     },
+    // Only the body controls a lesson needs (keys, e.g. ["psi"]; [] = none, null = all): the rest are
+    // hidden in the panel and on the thumb pad and ignore their keys. With none, "Your body" is hidden.
+    allowControls(list) {
+      controls.setAllowed(list);
+      touchpad.showAllowed();
+      $("controls").closest("section").hidden = !!list && list.length === 0;
+    },
     // visual aids on the scene (no effect on the physics)
     fx: {
       ghost: (on) => renderer.setGhost(on), line: (a, b) => renderer.setLine(a, b),

@@ -41,9 +41,20 @@ FC.Controls = class {
         input.addEventListener("input", () => { if (this.enabled) this.targets[c.key] = fromUi(+input.value); });
         this.els[c.key] = { c, valEl: wrap.querySelector(".ctrl-head b"), input, toUi };
       }
+      wrap.dataset.key = c.key;
       this.container.appendChild(wrap);
     }
     this.dialStart = 0;
+    this.showAllowed();
+  }
+
+  // A lesson can limit the body controls to the ones it needs: list of keys (a key also allows
+  // keys that start with it, e.g. "bend" for both joints of a flexible spine), [] for none, or
+  // null for all. Hidden controls ignore their keys too. Kept across model changes.
+  setAllowed(list) { this.allowed = list ? list.slice() : null; this.showAllowed(); }
+  isAllowed(key) { return !this.allowed || this.allowed.some((a) => key === a || key.startsWith(a)); }
+  showAllowed() {
+    this.container.querySelectorAll(".ctrl").forEach((w) => (w.hidden = !this.isAllowed(w.dataset.key)));
   }
 
   bindDial(canvas, c) {
@@ -70,6 +81,7 @@ FC.Controls = class {
   applyKeys(dtSim) {
     if (!this.enabled) return;
     for (const c of this.model.controls) {
+      if (!this.isAllowed(c.key)) continue;
       const [dec, inc] = c.keys;
       const dir = (this.held.has(inc) ? 1 : 0) - (this.held.has(dec) ? 1 : 0);
       if (!dir) continue;
