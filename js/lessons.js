@@ -133,20 +133,27 @@ FC.lessons = (function () {
     {
       id: 1, title: "Zero angular momentum", tagline: "Twist one half: the other turns back.",
       goal: "Twist the front half and watch what the back half does.", math: "momentum",
-      setup(api) { api.useModel0(0); api.fx.ghost(true); api.fx.arrows(true); },
+      // The leg has its real mass (0.3 kg), as drawn: the front half (cylinder + leg) is harder to turn than the back.
+      setup(api) { api.useModel0(0.3); api.fx.ghost(true); api.fx.arrows(true); },
       steps: [
         { text: "Twist: <var>ψ</var> to +90° or more.", status: (api) => `ψ = ${f(api.s.psi / deg)}°`,
           check(api, mem) { if (api.s.psi < 89.5 * deg || Math.abs(api.s.beta) > deg) return false; mem.psi = api.s.psi; mem.net = api.net()[0]; return true; } },
         { text: "Untwist: <var>ψ</var> back to 0.", status: (api) => `ψ = ${f(api.s.psi / deg)}°`,
           check(api, mem) { if (Math.abs(api.s.psi) > 0.5 * deg) return false; mem.back = FC.m3.v.norm(api.net()); return true; } },
       ],
+      // Angular momentum along the body: the front half is the front cylinder plus the leg hinged to it (bodies 0 and 2).
       viz(api, mem) {
-        const b = api.st.bodies, a = b[0].L[0] * 1e3, c = b[1].L[0] * 1e3;
+        const b = api.st.bodies, a = (b[0].L[0] + b[2].L[0]) * 1e3, c = b[1].L[0] * 1e3;
         mem.scale = Math.max((mem.scale || 0.5) * 0.995, Math.abs(a), Math.abs(c));
-        return viz.balance(a, c, mem.scale, ["front", "back"]) + `<div class="lv-note">Back half turned <b>${f(api.net()[0] / deg)}°</b> from the ghost</div>`;
+        return viz.balance(a, c, mem.scale, ["front + leg", "back"]) + `<div class="lv-note">Back half turned <b>${f(api.net()[0] / deg)}°</b> from the ghost</div>`;
       },
-      takeaway: (api, mem) => `You twisted the halves ${f(mem.psi / deg)}° apart, and each one turned <b>${f(Math.abs(mem.net / deg))}°</b>, in opposite directions:
-        equal and opposite, so the total angular momentum stayed exactly zero. Untwisting undid it, and the body ended up right back on its ghost.`,
+      // The halves turn opposite ways about the shared axis; together they make up the twist ψ.
+      takeaway: (api, mem) => {
+        const back = Math.abs(mem.net / deg), front = mem.psi / deg - back;
+        return `You twisted the halves ${f(mem.psi / deg)}° apart. The back half turned <b>${f(back)}°</b> one way, but the front half,
+          which carries the leg, only <b>${f(front)}°</b> the other way: more mass away from the axis makes it harder to turn. Their angular momenta
+          were still equal and opposite, so the total stayed exactly zero. Untwisting undid it, and the body ended up right back on its ghost.`;
+      },
     },
     {
       id: 3, title: "A loop makes a turn", tagline: "Same moves in a loop: the whole body turns.",
