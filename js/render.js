@@ -515,7 +515,7 @@ FC.Renderer = class {
       const pts = [];
       for (let i = 0; i <= 24; i++) pts.push(Y.clone().applyAxisAngle(new THREE.Vector3(1, 0, 0), (ang * i) / 24).multiplyScalar(R * 0.55));
       mk.arc.geometry.dispose();
-      mk.arc.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.0045, 6);
+      mk.arc.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.0028, 6);
     }
     // the arc is built in the y–z plane turning about x; place it turning about the real axis, keeping y
     // straight up (local x → axis, y → up, z → axis × up: an explicit basis, right-handed since axis ⟂ up)
@@ -553,9 +553,10 @@ FC.Renderer = class {
 
   buildMarkers() {
     const group = new THREE.Group();
-    const mat = (color) => new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true });
+    // see-through (55%) so the body shows through the markers; labels a little stronger (80%)
+    const mat = (color) => new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.55 });
     const top = (o) => { o.renderOrder = 20; o.traverse((c) => (c.renderOrder = 20)); return o; };
-    const YEL = 0xffd36b, CYAN = 0x79e3ff, W = 0.0045; // tube radius
+    const YEL = 0xffd36b, CYAN = 0x79e3ff, W = 0.0028; // tube radius (thin)
     // a tube from a to b (local coordinates)
     const tube = (a, b, m) => {
       const d = new THREE.Vector3().subVectors(b, a), o = new THREE.Mesh(new THREE.CylinderGeometry(W, W, d.length(), 8), m);
@@ -572,9 +573,9 @@ FC.Renderer = class {
     const arrow = (color) => {
       const m = mat(color), g = new THREE.Group();
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(W * 1.3, W * 1.3, 1, 8), m);
-      const head = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.04, 12), m);
+      const head = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.032, 12), m);
       g.add(shaft, head);
-      g.userData.setLength = (len) => { const s = Math.max(0.001, len - 0.04); shaft.scale.y = s; shaft.position.y = s / 2; head.position.y = s + 0.02; };
+      g.userData.setLength = (len) => { const s = Math.max(0.001, len - 0.032); shaft.scale.y = s; shaft.position.y = s / 2; head.position.y = s + 0.016; };
       g.userData.paint = (c) => m.color.set(c);
       g.userData.setLength(0.2);
       return top(g);
@@ -583,8 +584,8 @@ FC.Renderer = class {
     const sprite = (defColor) => {
       const c = document.createElement("canvas"); c.width = 256; c.height = 64;
       const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
-      const s = top(new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, sizeAttenuation: false, depthTest: false, transparent: true })));
-      s.scale.set(0.16, 0.04, 1);
+      const s = top(new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, sizeAttenuation: false, depthTest: false, transparent: true, opacity: 0.8 })));
+      s.scale.set(0.13, 0.0325, 1);
       s.userData.draw = (text, color = defColor) => {
         const g = c.getContext("2d");
         g.clearRect(0, 0, 256, 64);
@@ -606,7 +607,7 @@ FC.Renderer = class {
     // turning, built along +z and turned to the axis: dashed axis, a 270° ring around it, an arrowhead
     const turn = new THREE.Group(), r = 0.1, cm = mat(CYAN);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(r, W, 6, 48, 1.5 * Math.PI), cm); ring.position.z = 0.12;
-    const head = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.045, 12), cm);
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.013, 0.034, 12), cm);
     head.position.set(0, -r, 0.12); head.rotation.set(0, 0, -Math.PI / 2); // at the ring's end (270°), pointing on round (+x)
     const turnLabel = sprite("#79e3ff"); turnLabel.position.set(r + 0.1, 0, 0.12); // beside its ring, off the body axis
     turn.add(dashes(-0.22, 0.22, cm, true), ring, head, turnLabel);
