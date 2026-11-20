@@ -543,6 +543,14 @@ FC.Renderer = class {
       label(mk.Llabels[i], p.name, p.color);
     });
     for (let i = m.parts.length; i < mk.L.length; i++) mk.L[i].visible = mk.Llabels[i].visible = false;
+    // m.show ("tilt", "speed" or "L"): only that plot's marker
+    if (m.show) {
+      const tiltOn = m.show === "tilt";
+      mk.up.visible = mk.back.visible = mk.upLabel.visible = mk.tiltLabel.visible = tiltOn;
+      mk.arc.visible = mk.arc.visible && tiltOn;
+      mk.turn.visible = mk.turn.visible && m.show === "speed";
+      if (m.show !== "L") mk.L.forEach((a, i) => (a.visible = mk.Llabels[i].visible = false));
+    }
 
     function label(sprite, text, color) {
       if (sprite.userData.text === text && sprite.userData.color === color) return;

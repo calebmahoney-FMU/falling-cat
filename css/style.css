@@ -500,3 +500,7 @@ body.menu-open #stage-menu { display: none; }
 }
 /* colour dot before each plot's title: the same colour as its marker on the body */
 .pl-sw { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 5px; vertical-align: 1px; }
+/* plots can be pointed at or tapped: the chosen one's marker shows on the body, and its card lights up */
+.pl-block { pointer-events: auto; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.pl-block:hover { border-color: #4a566d; }
+.pl-block.on { border-color: var(--accent); background: rgba(30, 34, 44, 0.92); }

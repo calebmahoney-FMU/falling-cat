@@ -24,14 +24,28 @@ FC.Plots = class {
     // One line per chart: a plain title, a small unit, and (for momentum) a legend; the full meaning is the tooltip.
     const block = (key, title, unit, full, legend = "") => `<div class="pl-block" data-k="${key}" title="${full}"><div class="pl-head">
       <span class="pl-title">${title} <span class="pl-unit">${unit}</span></span><div class="pl-legend">${legend}</div></div><canvas></canvas></div>`;
+    const tip = " · Point at or tap to show it on the body";
     container.innerHTML =
-      block("tilt", `<i class="pl-sw" style="--c:#ffd36b"></i>Tilt`, "°", "How far the body is from upright: 180° = upside down, 0° = feet down") +
-      block("speed", `<i class="pl-sw" style="--c:#79e3ff"></i>Turning speed`, "°/s", "How fast the body is rotating (size of its angular velocity)") +
-      block("L", "Angular momentum", "", "Two parts of the body, along its length: they always cancel, so the total stays 0");
+      block("tilt", `<i class="pl-sw" style="--c:#ffd36b"></i>Tilt`, "°", "How far the body is from upright: 180° = upside down, 0° = feet down" + tip) +
+      block("speed", `<i class="pl-sw" style="--c:#79e3ff"></i>Turning speed`, "°/s", "How fast the body is rotating (size of its angular velocity)" + tip) +
+      block("L", "Angular momentum", "", "Two parts of the body, along its length: they always cancel, so the total stays 0" + tip);
     this.cv = {};
     container.querySelectorAll(".pl-block").forEach((b) => (this.cv[b.dataset.k] = b.querySelector("canvas")));
     this.legendEl = container.querySelector('[data-k="L"] .pl-legend');
+    // Which plot's marker is drawn on the body: the one under the mouse, or the one tapped/clicked
+    // (stays until tapped again). None chosen: no markers, the body stays clean.
+    this.hover = null; this.pinned = null;
+    container.querySelectorAll(".pl-block").forEach((b) => {
+      const k = b.dataset.k;
+      b.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") { this.hover = k; this.mark(); } });
+      b.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") { this.hover = null; this.mark(); } });
+      b.addEventListener("click", () => { this.pinned = this.pinned === k ? null : k; this.mark(); });
+    });
   }
+
+  // The plot whose marker is shown on the body ("tilt", "speed", "L") or null.
+  get active() { return this.hover || this.pinned; }
+  mark() { this.el.querySelectorAll(".pl-block").forEach((b) => b.classList.toggle("on", b.dataset.k === this.active)); }
 
   // Colours shared with the markers drawn on the body (js/render.js setMarkers).
   get C() { return { line: "#ffd36b", speed: "#79e3ff", front: "#f29a3a", back: "#5fb3f0", legs: "#7ee787", total: "#ffffff" }; }
