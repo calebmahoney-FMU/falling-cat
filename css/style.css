@@ -526,3 +526,12 @@ body.menu-open #stage-menu { display: none; }
   #controls .ctrl.sel { box-shadow: inset 3px 0 0 var(--accent); padding-left: 8px; margin-left: -8px; border-radius: 4px; }
   #controls .ctrl.sel .ctrl-head span { color: var(--text); }
 }
+
+/* ---------- touch strip: only as tall as its controls, and not wider than it needs ---------- */
+body.touch-play #touchpad { justify-content: center; }
+.tp-right { max-width: 460px; }
+/* Model 0's sliders: a compact column (at most 560 px) with Straighten beside it */
+.tp-sliders { flex: 0 1 560px; display: grid; grid-template-columns: 1fr auto; column-gap: 10px; row-gap: 4px;
+  align-content: center; align-items: center; }
+.tp-sl { grid-column: 1; grid-template-columns: 96px 1fr 44px; }
+.tp-sliders .tp-btn { grid-column: 2; grid-row: 1 / span 4; align-self: center; padding: 6px 12px; }

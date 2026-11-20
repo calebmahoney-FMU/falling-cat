@@ -82,7 +82,19 @@ FC.TouchPad = class {
   // Hide the thumb controls a lesson doesn't use (same list as the panel: controls.isAllowed).
   showAllowed() {
     const ok = (k) => this.controls.isAllowed(k), hide = (sel, k) => this.el.querySelectorAll(sel).forEach((e) => (e.hidden = !ok(k)));
-    if (this.generic) { this.el.querySelectorAll(".tp-sl").forEach((l) => (l.hidden = !ok(l.querySelector("input").dataset.key))); return; }
+    const root = document.documentElement.style;
+    if (this.generic) {
+      const rows = [...this.el.querySelectorAll(".tp-sl")];
+      rows.forEach((l) => (l.hidden = !ok(l.querySelector("input").dataset.key)));
+      // the strip is only as tall as the sliders it shows (38 px a row, 4 px gaps, 16 px padding);
+      // the scene gets the rest of the screen
+      const n = Math.max(1, rows.filter((l) => !l.hidden).length);
+      root.setProperty("--tp-h", `${Math.max(64, 16 + n * 38 + (n - 1) * 4)}px`);
+      requestAnimationFrame(() => FC.renderer && FC.renderer.resize()); // the scene's height changed
+      return;
+    }
+    root.removeProperty("--tp-h"); // the cats' thumb pad: its normal height
+    requestAnimationFrame(() => FC.renderer && FC.renderer.resize());
     hide(".tp-pad", "bend"); hide(".tp-twist", "twist");
     hide('[data-leg="front"]', "front"); hide('[data-leg="back"]', "back"); hide("[data-knees]", "knees");
   }
